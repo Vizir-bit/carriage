@@ -1,0 +1,35 @@
+--- a/components/helium_services/helium_services_helpers.cc
++++ b/components/helium_services/helium_services_helpers.cc
+@@ -113,17 +113,28 @@
+             prefs.GetBoolean(prefs::kHeliumUBlockAssetsEnabled);
+ }
+ 
++// Carriage: like Chrome and Brave, talk to the Chrome Web Store directly.
++// Helium's extension proxy is only used when the user explicitly turns it on.
++bool ShouldProxyExtensions(const PrefService& prefs) {
++    const PrefService::Preference* pref =
++        prefs.FindPreference(prefs::kHeliumExtProxyEnabled);
++    return ShouldAccessExtensionService(prefs) && pref &&
++           !pref->IsDefaultValue();
++}
++
+ GURL GetExtensionUpdateURL(const PrefService& prefs) {
+-    if (!ShouldAccessExtensionService(prefs)) {
+-        return GetDummyURL();
++    if (!ShouldProxyExtensions(prefs)) {
++        return GURL("https://clients2.google.com/service/update2/crx");
+     }
+ 
+     return GetServicesBaseURL(prefs).Resolve("/ext");
+ }
+ 
+ GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
+-    if (!ShouldAccessExtensionService(prefs)) {
+-        return GetDummyURL();
++    if (!ShouldProxyExtensions(prefs)) {
++        return GURL(base::StringPrintf(
++            "https://chromewebstore.googleapis.com/v2/items/%s:fetchItemSnippet",
++            id));
+     }
+ 
+     return GetServicesBaseURL(prefs).Resolve(

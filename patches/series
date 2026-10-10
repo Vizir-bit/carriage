@@ -27,3 +27,4 @@ helium/macos/fix-history-swiper-lifetime.patch
 
 carriage/macos/carriage-identity.patch
 carriage/ui/carriage-default-colors.patch
+carriage/core/carriage-webstore-direct.patch
