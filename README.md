@@ -1,36 +1,30 @@
-# helium-macos
-macOS packaging & development tooling for the
-[Helium Browser](https://github.com/imputnet/helium).
+# Carriage
 
-## Building and development
-macOS is our primary development platform, so it's the recommended environment
-for developing new Helium features.
+A private, minimal browser with typewriter character, for macOS first.
 
-[> See docs/building.md](docs/building.md)
+Carriage is built on [Helium](https://github.com/imputnet/helium) and
+[ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium):
+real Chromium, no Google services, Chrome Web Store extensions, and uBlock Origin
+included out of the box.
 
-## Contributing
-Before contributing to this repo, please read the guidelines in the main repo's
-[CONTRIBUTING.md](https://github.com/imputnet/helium/blob/main/CONTRIBUTING.md).
+## Status
 
-## Credits
+Early development. Milestone 1 on Chromium: Carriage identity on top of Helium
+(app name, bundle ID `app.carriage.browser`, own profile folder and keychain item).
+Test builds are unsigned (ad-hoc), Apple Silicon only.
 
-### Depot
-Big thank you to [Depot](https://depot.dev/) for sponsoring our runners,
-which handle the macOS builds of Helium. Their high-performance infrastructure
-lets us compile, package, and release new builds of Helium within hours,
-not days.
+## How it is built
 
-### ungoogled-chromium-macos
-This repo is based on
-[ungoogled-chromium-macos](https://github.com/ungoogled-software/ungoogled-chromium-macos),
-but heavily modified for Helium. Special thanks to everyone behind
-ungoogled-chromium, they made working with Chromium infinitely easier.
+- `helium-chromium/` — Helium's patch set on Chromium (submodule, upstream).
+- `patches/` — macOS patches from Helium, plus `patches/carriage/` for Carriage's own changes,
+  listed at the end of `patches/series`.
+- `.github/workflows/build.yml` — run it manually ("Run workflow") to build on GitHub's
+  macOS runners. The build resumes across up to ten chained jobs; the `.dmg` appears as
+  an artifact of the final job.
 
-## License
-All code, patches, modified portions of imported code or patches, and
-any other content that is unique to Helium and not imported from other
-repositories is licensed under GPL-3.0. See [LICENSE](LICENSE).
+Upstream Helium macOS: see `README.helium.md` and https://github.com/imputnet/helium-macos.
 
-Any content imported from other projects retains its original license (for
-example, any original unmodified code imported from ungoogled-chromium remains
-licensed under their [BSD 3-Clause license](LICENSE.ungoogled_chromium)).
+## Licence
+
+GPL-3.0, as Helium. See `LICENSE`. Chromium and ungoogled-chromium components keep
+their own licences.

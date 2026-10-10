@@ -12,21 +12,28 @@ if [ -f "$_root_dir/build_finished_$_target_cpu.log" ]; then
   # For packaging
   _helium_version=$(python3 "$_main_repo/utils/helium_version.py" --tree "$_main_repo" --platform-tree "$_root_dir" --print)
 
-  _file_name="helium_${_helium_version}_${_target_cpu}-macos.dmg"
+  _file_name="carriage_${_helium_version}_${_target_cpu}-macos.dmg"
   _hash_name="${_file_name}.hashes.md"
 
   cd "$_src_dir"
 
-  xattr -cs out/Default/Helium.app
+  xattr -cs out/Default/Carriage.app
 
-  # Prepar the certificate for app signing
-  echo $MACOS_CERTIFICATE | base64 --decode > "$TMPDIR/certificate.p12"
+  # Carriage: only set up signing when a certificate is configured;
+  # otherwise sign_and_package_app.sh falls back to ad-hoc signing.
+  if [ -n "${MACOS_CERTIFICATE:-}" ]; then
+    # Prepar the certificate for app signing
+    echo $MACOS_CERTIFICATE | base64 --decode > "$TMPDIR/certificate.p12"
 
-  security create-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain
-  security default-keychain -s build.keychain
-  security unlock-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain
-  security import "$TMPDIR/certificate.p12" -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
-  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_CI_KEYCHAIN_PWD" build.keychain
+    security create-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain
+    security default-keychain -s build.keychain
+    security unlock-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain
+    security import "$TMPDIR/certificate.p12" -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_CI_KEYCHAIN_PWD" build.keychain
+
+  else
+    unset MACOS_CERTIFICATE_NAME
+  fi
 
   if ! [ -z "${PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_B64:-}" ]; then
     export PROD_MACOS_SPECIAL_ENTITLEMENTS_PROFILE_PATH=$(mktemp)
@@ -56,21 +63,8 @@ if [ -f "$_root_dir/build_finished_$_target_cpu.log" ]; then
   mkdir -p release_asset
   mv "$_file_name" release_asset/
 
-  if [ "$_target_cpu" = "x86_64" ]; then
-    DELTA_ARG="--x86"
-  else
-    DELTA_ARG="--arm"
-  fi
-
-  PATH="$_src_dir/out/Default:$PATH" python3 "$_root_dir/devutils/generate_sparkle_deltas.py" \
-    "$DELTA_ARG" "./release_asset/$_file_name" \
-    --out ./release_asset
-
-  {
-    echo 'deltas<<EOF'
-    find ./release_asset/ -name '*.delta'
-    echo EOF
-  } >> "$GITHUB_OUTPUT"
+  # Carriage: Sparkle update deltas are disabled until Carriage has its own update channel.
+  echo "deltas=" >> "$GITHUB_OUTPUT"
 
   ls -kahl release_asset/
   du -hs release_asset/

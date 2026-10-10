@@ -128,7 +128,7 @@ ___helium_build() {
 }
 
 ___helium_run() {
-    "$_out_dir/Helium.app/Contents/MacOS/Helium" \
+    "$_out_dir/Carriage.app/Contents/MacOS/Carriage" \
     --user-data-dir="$HOME/Library/Application Support/net.imput.helium.dev" \
     --enable-ui-devtools \
     --use-mock-keychain \
