@@ -25,5 +25,4 @@ helium/macos/disable-chromium-immersive-fullscreen.patch
 helium/macos/helium-immersive-fullscreen.patch
 helium/macos/fix-history-swiper-lifetime.patch
 
-# Carriage
 carriage/macos/carriage-identity.patch
