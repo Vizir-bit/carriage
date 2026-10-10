@@ -1,0 +1,32 @@
+--- a/chrome/browser/themes/theme_service.cc
++++ b/chrome/browser/themes/theme_service.cc
+@@ -358,7 +358,14 @@ void ThemeService::Init() {
+   if (profile_->IsNewProfile() && !UsingPolicyTheme() &&
+       !profile_->GetPrefs()->HasPrefPath(prefs::kCurrentThemeID) &&
+       !profile_->GetPrefs()->HasPrefPath(prefs::kGrayscaleThemeEnabled)) {
+-    profile_->GetPrefs()->SetBoolean(prefs::kGrayscaleThemeEnabled, true);
++    // Carriage: paper and walnut. A low-chroma palette seeded from saddle
++    // brown (#8A6A4A) gives cream surfaces in light mode, walnut in dark mode.
++    profile_->GetPrefs()->SetInteger(prefs::kUserColor,
++                                     SkColorSetRGB(0x8A, 0x6A, 0x4A));
++    profile_->GetPrefs()->SetString(prefs::kCurrentThemeID, kUserColorThemeID);
++    profile_->GetPrefs()->SetInteger(
++        prefs::kBrowserColorVariant,
++        static_cast<int>(ui::mojom::BrowserColorVariant::kNeutral));
+   }
+ 
+   InitFromPrefs();
+@@ -486,7 +493,12 @@ void ThemeService::UseDefaultTheme() {
+   }
+ 
+   ClearThemeData(/*reset_all_settings=*/true);
+-  profile_->GetPrefs()->SetBoolean(prefs::kGrayscaleThemeEnabled, true);
++  profile_->GetPrefs()->SetInteger(prefs::kUserColor,
++                                   SkColorSetRGB(0x8A, 0x6A, 0x4A));
++  profile_->GetPrefs()->SetString(prefs::kCurrentThemeID, kUserColorThemeID);
++  profile_->GetPrefs()->SetInteger(
++      prefs::kBrowserColorVariant,
++      static_cast<int>(ui::mojom::BrowserColorVariant::kNeutral));
+ 
+   NotifyThemeChanged();
+ }
