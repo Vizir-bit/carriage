@@ -28,6 +28,18 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Expose GitHub cache service to sccache
+      uses: actions/github-script@v7
+      with:
+        script: |
+          // Carriage: sccache's GitHub Actions backend needs these, which are only
+          // visible to actions, not to run steps (Helium builds on Depot runners).
+          for (const k of ['ACTIONS_RESULTS_URL', 'ACTIONS_RUNTIME_TOKEN', 'ACTIONS_CACHE_URL']) {
+            if (process.env[k]) core.exportVariable(k, process.env[k]);
+          }
+          core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
+          core.exportVariable('SCCACHE_IGNORE_SERVER_IO_ERROR', '1');
+
     - name: Show sccache stats before build
       run: sccache --show-stats
       shell: bash
