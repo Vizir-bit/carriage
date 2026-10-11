@@ -1,0 +1,218 @@
+--- a/chrome/browser/resources/new_tab_page/app.css
++++ b/chrome/browser/resources/new_tab_page/app.css
+@@ -563,3 +563,79 @@
+     -webkit-mask-image: url(icons/link.svg);
+   }
+ }
++
++/* Carriage: three retro wall clocks. */
++#carriageClocks {
++  display: flex;
++  gap: 56px;
++  justify-content: center;
++  margin-bottom: 48px;
++}
++
++.carriage-clock {
++  align-items: center;
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++}
++
++.carriage-clock svg {
++  filter: drop-shadow(0 2px 3px rgba(43, 30, 22, 0.28));
++  height: 132px;
++  margin-bottom: 8px;
++  width: 132px;
++}
++
++.carriage-clock .ticks-minor,
++.carriage-clock .ticks-major {
++  fill: none;
++  stroke: #2A1F18;
++}
++
++.carriage-clock .ticks-minor {
++  stroke-width: 0.8;
++}
++
++.carriage-clock .ticks-major {
++  stroke-width: 2.4;
++}
++
++.carriage-clock .numerals text {
++  fill: #2A1F18;
++  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
++  font-size: 12px;
++  font-weight: 700;
++  text-anchor: middle;
++}
++
++.carriage-clock .hand {
++  fill: #2A1F18;
++}
++
++.carriage-clock .seconds line {
++  stroke: #8A3E2C;
++  stroke-width: 0.8;
++}
++
++.carriage-clock .seconds circle {
++  fill: #8A3E2C;
++}
++
++.carriage-clock-city,
++.carriage-clock-time {
++  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
++}
++
++.carriage-clock-city {
++  color: var(--cr-primary-text-color);
++  font-size: 13px;
++  font-weight: 700;
++  letter-spacing: 0.18em;
++  text-transform: uppercase;
++}
++
++.carriage-clock-time {
++  color: var(--cr-secondary-text-color);
++  font-size: 12px;
++  font-variant-numeric: tabular-nums;
++}
+--- a/chrome/browser/resources/new_tab_page/app.html
++++ b/chrome/browser/resources/new_tab_page/app.html
+@@ -1,4 +1,41 @@
+ <div id="content">
++  <div id="carriageClocks">
++    ${this.carriageClocks_.map(clock => html`
++      <div class="carriage-clock" title="${clock.city} ${clock.digital}">
++        <svg viewBox="0 0 100 100" aria-hidden="true">
++          <defs>
++            <linearGradient id="carriageBezel" x1="0" y1="0" x2="0" y2="1">
++              <stop offset="0" stop-color="#D9BC85"></stop>
++              <stop offset=".55" stop-color="#B08D57"></stop>
++              <stop offset="1" stop-color="#7A5C38"></stop>
++            </linearGradient>
++            <radialGradient id="carriageDial" cx="45%" cy="38%" r="70%">
++              <stop offset="0" stop-color="#FBF5E6"></stop>
++              <stop offset="1" stop-color="#EADBBE"></stop>
++            </radialGradient>
++          </defs>
++          <circle cx="50" cy="50" r="49" fill="url(#carriageBezel)"></circle>
++          <circle cx="50" cy="50" r="46" fill="#4A3426"></circle>
++          <circle cx="50" cy="50" r="45.2" fill="url(#carriageDial)"></circle>
++          <path class="ticks-minor" d="M54.44 7.73L54.70 5.25M58.84 8.43L59.36 5.98M63.13 9.58L63.91 7.20M67.29 11.17L68.30 8.89M74.98 15.62L76.45 13.59M78.44 18.42L80.11 16.56M81.58 21.56L83.44 19.89M84.38 25.02L86.41 23.55M88.83 32.71L91.11 31.70M90.42 36.87L92.80 36.09M91.57 41.16L94.02 40.64M92.27 45.56L94.75 45.30M92.27 54.44L94.75 54.70M91.57 58.84L94.02 59.36M90.42 63.13L92.80 63.91M88.83 67.29L91.11 68.30M84.38 74.98L86.41 76.45M81.58 78.44L83.44 80.11M78.44 81.58L80.11 83.44M74.98 84.38L76.45 86.41M67.29 88.83L68.30 91.11M63.13 90.42L63.91 92.80M58.84 91.57L59.36 94.02M54.44 92.27L54.70 94.75M45.56 92.27L45.30 94.75M41.16 91.57L40.64 94.02M36.87 90.42L36.09 92.80M32.71 88.83L31.70 91.11M25.02 84.38L23.55 86.41M21.56 81.58L19.89 83.44M18.42 78.44L16.56 80.11M15.62 74.98L13.59 76.45M11.17 67.29L8.89 68.30M9.58 63.13L7.20 63.91M8.43 58.84L5.98 59.36M7.73 54.44L5.25 54.70M7.73 45.56L5.25 45.30M8.43 41.16L5.98 40.64M9.58 36.87L7.20 36.09M11.17 32.71L8.89 31.70M15.62 25.02L13.59 23.55M18.42 21.56L16.56 19.89M21.56 18.42L19.89 16.56M25.02 15.62L23.55 13.59M32.71 11.17L31.70 8.89M36.87 9.58L36.09 7.20M41.16 8.43L40.64 5.98M45.56 7.73L45.30 5.25"></path>
++          <path class="ticks-major" d="M70.25 14.93L72.50 11.03M85.07 29.75L88.97 27.50M85.07 70.25L88.97 72.50M70.25 85.07L72.50 88.97M29.75 85.07L27.50 88.97M14.93 70.25L11.03 72.50M14.93 29.75L11.03 27.50M29.75 14.93L27.50 11.03"></path>
++          <g class="numerals"><text x="50.00" y="21.20">12</text><text x="83.00" y="54.20">3</text><text x="50.00" y="87.20">6</text><text x="17.00" y="54.20">9</text></g>
++          <path class="hand" d="M48.2 56L49 24L51 24L51.8 56Z"
++              transform="rotate(${clock.hourAngle} 50 50)"></path>
++          <path class="hand" d="M48.8 58L49.4 12L50.6 12L51.2 58Z"
++              transform="rotate(${clock.minuteAngle} 50 50)"></path>
++          <g class="seconds" transform="rotate(${clock.secondAngle} 50 50)">
++            <line x1="50" y1="62" x2="50" y2="14"></line>
++            <circle cx="50" cy="20" r="2.3"></circle>
++          </g>
++          <circle cx="50" cy="50" r="2.6" fill="#2A1F18"></circle>
++          <circle cx="50" cy="50" r="1.1" fill="#B08D57"></circle>
++        </svg>
++        <div class="carriage-clock-city">${clock.city}</div>
++        <div class="carriage-clock-time">${clock.digital}</div>
++      </div>
++    `)}
++  </div>
+   ${this.lazyRender_ ? html`
+     ${this.shortcutsEnabled_ ? html`
+       <cr-most-visited id="mostVisited" .theme="${this.theme_?.mostVisited || null}"
+--- a/chrome/browser/resources/new_tab_page/app.ts
++++ b/chrome/browser/resources/new_tab_page/app.ts
+@@ -156,6 +156,50 @@
+   };
+ }
+ 
++// Carriage: three retro wall clocks on the new tab page.
++interface CarriageClock {
++  city: string;
++  digital: string;
++  hourAngle: number;
++  minuteAngle: number;
++  secondAngle: number;
++}
++
++const CARRIAGE_CLOCK_ZONES: Array<[string, string]> = [
++  ['London', 'Europe/London'],
++  ['Paris', 'Europe/Paris'],
++  ['Moscou', 'Europe/Moscow'],
++];
++
++const carriageClockFormatters = CARRIAGE_CLOCK_ZONES.map(
++    ([, timeZone]) => new Intl.DateTimeFormat('en-GB', {
++      timeZone,
++      hour: '2-digit',
++      minute: '2-digit',
++      second: '2-digit',
++      hourCycle: 'h23',
++    }));
++
++function carriageClocksNow(): CarriageClock[] {
++  const now = new Date();
++  return CARRIAGE_CLOCK_ZONES.map(([city], i) => {
++    const parts = carriageClockFormatters[i]!.formatToParts(now);
++    const get = (type: string) =>
++        Number(parts.find(part => part.type === type)?.value ?? 0);
++    const hour = get('hour');
++    const minute = get('minute');
++    const second = get('second');
++    return {
++      city,
++      digital: `${String(hour).padStart(2, '0')}:${
++          String(minute).padStart(2, '0')}`,
++      hourAngle: (hour % 12) * 30 + minute * 0.5,
++      minuteAngle: minute * 6 + second * 0.1,
++      secondAngle: second * 6,
++    };
++  });
++}
++
+ export class AppElement extends AppElementBase {
+   static get is() {
+     return 'ntp-app';
+@@ -290,6 +334,8 @@
+        */
+       lazyRender_: {type: Boolean},
+ 
++      carriageClocks_: {type: Array},
++
+       scrolledToTop_: {type: Boolean},
+ 
+       wallpaperSearchButtonAnimationEnabled_: {type: Boolean},
+@@ -426,6 +472,8 @@
+       loadTimeData.getBoolean('multiLineEnabled');
+   protected accessor modulesLoaded_: boolean = false;
+   protected accessor lazyRender_: boolean = false;
++  protected accessor carriageClocks_: CarriageClock[] = carriageClocksNow();
++  private carriageClockTimer_: number|null = null;
+   protected accessor scrolledToTop_: boolean =
+       document.documentElement.scrollTop <= 0;
+   protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
+@@ -542,6 +590,9 @@
+ 
+   override connectedCallback() {
+     super.connectedCallback();
++    this.carriageClockTimer_ = window.setInterval(() => {
++      this.carriageClocks_ = carriageClocksNow();
++    }, 1000);
+     realboxCanShowSecondarySideMediaQueryList.addEventListener(
+         'change', this.onRealboxCanShowSecondarySideChanged_);
+ 
+@@ -643,6 +694,10 @@
+ 
+   override disconnectedCallback() {
+     super.disconnectedCallback();
++    if (this.carriageClockTimer_ !== null) {
++      window.clearInterval(this.carriageClockTimer_);
++      this.carriageClockTimer_ = null;
++    }
+     realboxCanShowSecondarySideMediaQueryList.removeEventListener(
+         'change', this.onRealboxCanShowSecondarySideChanged_);
+ 
