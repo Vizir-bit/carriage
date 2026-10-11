@@ -1,6 +1,6 @@
 #!/bin/bash -eux
 
-tar --exclude='.git' --exclude='helium-chromium/.git' -c -f - . | zstd -vv -11 -T0 -o build_resources.tar.zst
+tar --format pax --exclude='.git' --exclude='helium-chromium/.git' -c -f - . | zstd -vv -11 -T0 -o build_resources.tar.zst
 
 sha256sum ./build_resources.tar.zst | tee ./build_resources_sums.txt
 
