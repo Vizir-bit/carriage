@@ -142,7 +142,7 @@
 +const CARRIAGE_CLOCK_ZONES: Array<[string, string]> = [
 +  ['London', 'Europe/London'],
 +  ['Paris', 'Europe/Paris'],
-+  ['Moscou', 'Europe/Moscow'],
++  ['Moscow', 'Europe/Moscow'],
 +];
 +
 +const carriageClockFormatters = CARRIAGE_CLOCK_ZONES.map(
