@@ -8,7 +8,7 @@
 +/* Carriage: three retro wall clocks. */
 +#carriageClocks {
 +  display: flex;
-+  gap: 56px;
++  gap: clamp(96px, 12vw, 176px);
 +  justify-content: center;
 +  margin-bottom: 48px;
 +}
