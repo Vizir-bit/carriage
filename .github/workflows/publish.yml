@@ -1,0 +1,44 @@
+name: Carriage — publish test build
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build run whose .dmg should be published
+        required: true
+      tag:
+        description: Release tag
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the disk image from the build run
+        uses: actions/download-artifact@v4
+        with:
+          pattern: carriage_*.dmg
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dl
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          find dl -type f
+          dmg=$(find dl -name 'carriage_*.dmg' | head -1)
+          hashes=$(find dl -name '*.hashes.md' | head -1)
+          sha=$(sha256sum "$dmg" | cut -d' ' -f1)
+          head_sha=$(gh api repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }} --jq .head_sha)
+          sed "s/__SHA256__/$sha/" docs/release-notes-test.md > notes.md
+          gh release create "${{ inputs.tag }}" "$dmg" "$hashes" \
+            --target "$head_sha" --prerelease \
+            --title "Carriage ${{ inputs.tag }} — test build (Apple Silicon)" \
+            --notes-file notes.md
