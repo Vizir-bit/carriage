@@ -1,123 +1,256 @@
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -563,3 +563,79 @@
+@@ -563,3 +563,201 @@
      -webkit-mask-image: url(icons/link.svg);
    }
  }
 +
-+/* Carriage: three retro wall clocks. */
++/* Carriage: Pullman carriage. Mahogany panelling, brass, and three arched
++   windows whose sky follows each city's time of day. */
++#carriagePanelling {
++  background:
++      repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.1) 0 2px,
++                                transparent 2px 9px),
++      repeating-linear-gradient(88deg, rgba(255, 200, 150, 0.05) 0 1px,
++                                transparent 1px 23px),
++      linear-gradient(180deg, #3B1A10, #5A2A17 50%, #3B1A10);
++  inset: 0;
++  pointer-events: none;
++  position: fixed;
++  z-index: -1;
++}
++
++.carriage-brass-band {
++  background: linear-gradient(90deg, #6E5220, #E8CE86, #6E5220);
++  height: 3px;
++  left: 0;
++  position: absolute;
++  right: 0;
++}
++
++.carriage-brass-band.top {
++  top: 13%;
++}
++
++.carriage-brass-band.bottom {
++  bottom: 13%;
++}
++
++#carriagePlate {
++  background: linear-gradient(180deg, #F1D98F, #B8963F);
++  border-radius: 3px;
++  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 1px 0 #FFF2C0;
++  color: #3B1A10;
++  font-family: Copperplate, Futura, 'Avenir Next', sans-serif;
++  font-size: 15px;
++  font-weight: 700;
++  letter-spacing: 0.5em;
++  margin-bottom: 44px;
++  padding: 9px 26px 8px 34px;
++}
++
 +#carriageClocks {
 +  display: flex;
 +  gap: clamp(96px, 12vw, 176px);
 +  justify-content: center;
-+  margin-bottom: 48px;
++  margin-bottom: 52px;
 +}
 +
-+.carriage-clock {
++.carriage-window {
++  background: linear-gradient(160deg, #F1D98F, #8C6A2C);
++  border-radius: 95px 95px 22px 22px;
++  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
++  box-sizing: border-box;
++  height: 250px;
++  padding: 9px;
++  width: 190px;
++}
++
++.carriage-glass {
 +  align-items: center;
++  border-radius: 86px 86px 16px 16px;
++  box-sizing: border-box;
 +  display: flex;
 +  flex-direction: column;
-+  gap: 6px;
++  height: 100%;
++  overflow: hidden;
++  padding-top: 22px;
++  position: relative;
++  width: 100%;
 +}
 +
-+.carriage-clock svg {
-+  filter: drop-shadow(0 2px 3px rgba(43, 30, 22, 0.28));
-+  height: 132px;
-+  margin-bottom: 8px;
-+  width: 132px;
++.carriage-glass.sky-night {
++  background: linear-gradient(180deg, #070C24, #18224F);
 +}
 +
-+.carriage-clock .ticks-minor,
-+.carriage-clock .ticks-major {
++.carriage-glass.sky-dawn {
++  background: linear-gradient(180deg, #2B2357, #C9786A);
++}
++
++.carriage-glass.sky-day {
++  background: linear-gradient(180deg, #3E6FB3, #A9C7E8);
++}
++
++.carriage-glass.sky-dusk {
++  background: linear-gradient(180deg, #3A2E66, #E39A62);
++}
++
++.carriage-glass.sky-evening {
++  background: linear-gradient(180deg, #141A45, #4B3A7A);
++}
++
++.carriage-stars {
++  height: 100%;
++  inset: 0;
++  position: absolute;
++  width: 100%;
++}
++
++.carriage-stars path {
 +  fill: none;
-+  stroke: #2A1F18;
++  stroke: #FFF8E6;
++  stroke-linecap: round;
 +}
 +
-+.carriage-clock .ticks-minor {
-+  stroke-width: 0.8;
++.carriage-stars .small {
++  opacity: 0.6;
++  stroke-width: 1.1;
 +}
 +
-+.carriage-clock .ticks-major {
-+  stroke-width: 2.4;
++.carriage-stars .large {
++  opacity: 0.9;
++  stroke-width: 2;
 +}
 +
-+.carriage-clock .numerals text {
-+  fill: #2A1F18;
-+  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-+  font-size: 12px;
-+  font-weight: 700;
++.sky-day .carriage-stars {
++  display: none;
++}
++
++.sky-dawn .carriage-stars,
++.sky-dusk .carriage-stars {
++  opacity: 0.45;
++}
++
++.carriage-dial {
++  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
++  height: 128px;
++  position: relative;
++  width: 128px;
++}
++
++.carriage-dial .arc {
++  fill: none;
++  stroke: #C9B27A;
++  stroke-width: 0.4;
++}
++
++.carriage-dial .ticks-minor,
++.carriage-dial .ticks-major {
++  fill: none;
++}
++
++.carriage-dial .ticks-minor {
++  stroke: #3B2A1A;
++  stroke-width: 0.45;
++}
++
++.carriage-dial .ticks-major {
++  stroke: #2A1A10;
++  stroke-width: 1.5;
++}
++
++.carriage-dial .numerals text {
++  fill: #2A1A10;
++  font-family: Didot, 'Bodoni 72', Georgia, serif;
++  font-size: 9.5px;
 +  text-anchor: middle;
 +}
 +
-+.carriage-clock .hand {
-+  fill: #2A1F18;
++.carriage-dial .hand {
++  fill: #2A1A10;
 +}
 +
-+.carriage-clock .seconds line {
-+  stroke: #8A3E2C;
-+  stroke-width: 0.8;
++.carriage-dial .seconds line {
++  stroke: #9E2B25;
++  stroke-width: 0.55;
 +}
 +
-+.carriage-clock .seconds circle {
-+  fill: #8A3E2C;
++.carriage-dial .seconds circle {
++  fill: #9E2B25;
 +}
 +
-+.carriage-clock-city,
-+.carriage-clock-time {
-+  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
++.carriage-city,
++.carriage-time {
++  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
++  position: relative;
++  text-shadow: 0 1px 3px rgba(20, 8, 4, 0.75);
 +}
 +
-+.carriage-clock-city {
-+  color: var(--cr-primary-text-color);
-+  font-size: 13px;
-+  font-weight: 700;
-+  letter-spacing: 0.18em;
++.carriage-city {
++  color: #F6E7BC;
++  font-size: 12px;
++  font-weight: 600;
++  letter-spacing: 0.36em;
++  margin-top: 14px;
 +  text-transform: uppercase;
 +}
 +
-+.carriage-clock-time {
-+  color: var(--cr-secondary-text-color);
++.carriage-time {
++  color: #FFF1CC;
 +  font-size: 12px;
 +  font-variant-numeric: tabular-nums;
++  letter-spacing: 0.2em;
++  margin-top: 5px;
 +}
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -1,4 +1,41 @@
+@@ -1,4 +1,52 @@
  <div id="content">
++  <div id="carriagePanelling" aria-hidden="true">
++    <div class="carriage-brass-band top"></div>
++    <div class="carriage-brass-band bottom"></div>
++  </div>
++  <div id="carriagePlate" aria-hidden="true">CARRIAGE</div>
 +  <div id="carriageClocks">
 +    ${this.carriageClocks_.map(clock => html`
-+      <div class="carriage-clock" title="${clock.city} ${clock.digital}">
-+        <svg viewBox="0 0 100 100" aria-hidden="true">
-+          <defs>
-+            <linearGradient id="carriageBezel" x1="0" y1="0" x2="0" y2="1">
-+              <stop offset="0" stop-color="#D9BC85"></stop>
-+              <stop offset=".55" stop-color="#B08D57"></stop>
-+              <stop offset="1" stop-color="#7A5C38"></stop>
-+            </linearGradient>
-+            <radialGradient id="carriageDial" cx="45%" cy="38%" r="70%">
-+              <stop offset="0" stop-color="#FBF5E6"></stop>
-+              <stop offset="1" stop-color="#EADBBE"></stop>
-+            </radialGradient>
-+          </defs>
-+          <circle cx="50" cy="50" r="49" fill="url(#carriageBezel)"></circle>
-+          <circle cx="50" cy="50" r="46" fill="#4A3426"></circle>
-+          <circle cx="50" cy="50" r="45.2" fill="url(#carriageDial)"></circle>
-+          <path class="ticks-minor" d="M54.44 7.73L54.70 5.25M58.84 8.43L59.36 5.98M63.13 9.58L63.91 7.20M67.29 11.17L68.30 8.89M74.98 15.62L76.45 13.59M78.44 18.42L80.11 16.56M81.58 21.56L83.44 19.89M84.38 25.02L86.41 23.55M88.83 32.71L91.11 31.70M90.42 36.87L92.80 36.09M91.57 41.16L94.02 40.64M92.27 45.56L94.75 45.30M92.27 54.44L94.75 54.70M91.57 58.84L94.02 59.36M90.42 63.13L92.80 63.91M88.83 67.29L91.11 68.30M84.38 74.98L86.41 76.45M81.58 78.44L83.44 80.11M78.44 81.58L80.11 83.44M74.98 84.38L76.45 86.41M67.29 88.83L68.30 91.11M63.13 90.42L63.91 92.80M58.84 91.57L59.36 94.02M54.44 92.27L54.70 94.75M45.56 92.27L45.30 94.75M41.16 91.57L40.64 94.02M36.87 90.42L36.09 92.80M32.71 88.83L31.70 91.11M25.02 84.38L23.55 86.41M21.56 81.58L19.89 83.44M18.42 78.44L16.56 80.11M15.62 74.98L13.59 76.45M11.17 67.29L8.89 68.30M9.58 63.13L7.20 63.91M8.43 58.84L5.98 59.36M7.73 54.44L5.25 54.70M7.73 45.56L5.25 45.30M8.43 41.16L5.98 40.64M9.58 36.87L7.20 36.09M11.17 32.71L8.89 31.70M15.62 25.02L13.59 23.55M18.42 21.56L16.56 19.89M21.56 18.42L19.89 16.56M25.02 15.62L23.55 13.59M32.71 11.17L31.70 8.89M36.87 9.58L36.09 7.20M41.16 8.43L40.64 5.98M45.56 7.73L45.30 5.25"></path>
-+          <path class="ticks-major" d="M70.25 14.93L72.50 11.03M85.07 29.75L88.97 27.50M85.07 70.25L88.97 72.50M70.25 85.07L72.50 88.97M29.75 85.07L27.50 88.97M14.93 70.25L11.03 72.50M14.93 29.75L11.03 27.50M29.75 14.93L27.50 11.03"></path>
-+          <g class="numerals"><text x="50.00" y="21.20">12</text><text x="83.00" y="54.20">3</text><text x="50.00" y="87.20">6</text><text x="17.00" y="54.20">9</text></g>
-+          <path class="hand" d="M48.2 56L49 24L51 24L51.8 56Z"
-+              transform="rotate(${clock.hourAngle} 50 50)"></path>
-+          <path class="hand" d="M48.8 58L49.4 12L50.6 12L51.2 58Z"
-+              transform="rotate(${clock.minuteAngle} 50 50)"></path>
-+          <g class="seconds" transform="rotate(${clock.secondAngle} 50 50)">
-+            <line x1="50" y1="62" x2="50" y2="14"></line>
-+            <circle cx="50" cy="20" r="2.3"></circle>
-+          </g>
-+          <circle cx="50" cy="50" r="2.6" fill="#2A1F18"></circle>
-+          <circle cx="50" cy="50" r="1.1" fill="#B08D57"></circle>
-+        </svg>
-+        <div class="carriage-clock-city">${clock.city}</div>
-+        <div class="carriage-clock-time">${clock.digital}</div>
++      <div class="carriage-window" title="${clock.city} ${clock.digital}">
++        <div class="carriage-glass sky-${clock.sky}">
++          <svg class="carriage-stars" viewBox="0 0 172 232"
++              preserveAspectRatio="none" aria-hidden="true">
++            <path class="small" d="M57.1 25.1h0M110.8 14.1h0M91.9 55.1h0M13.5 75.0h0M10.1 64.6h0M15.5 16.7h0M73.6 119.6h0M24.3 35.2h0M106.9 136.5h0M98.6 59.5h0M164.1 10.5h0M144.8 44.5h0M27.7 20.5h0M54.6 118.1h0M33.6 85.3h0M108.8 56.1h0M93.8 12.8h0M13.8 32.8h0M115.6 63.8h0M55.5 85.9h0M78.3 45.9h0M134.3 101.7h0M44.0 84.3h0M90.1 126.4h0M123.6 44.3h0M164.7 20.5h0M72.6 109.9h0M28.9 72.4h0M10.4 97.4h0M129.4 84.1h0M147.6 47.9h0M118.0 87.1h0M99.1 67.8h0M141.8 136.1h0M81.8 96.9h0M13.9 102.1h0M110.1 142.9h0M138.8 43.8h0M67.3 97.5h0M7.7 68.6h0M31.6 20.4h0M13.7 111.4h0M25.2 38.6h0M68.1 125.9h0M17.2 66.8h0M94.1 127.5h0"></path>
++            <path class="large" d="M138.4 124.8h0M49.7 62.1h0M62.8 127.6h0M161.1 25.1h0M32.9 36.4h0M42.3 71.8h0M100.6 40.7h0M4.7 62.6h0M64.6 83.2h0M160.3 100.6h0"></path>
++          </svg>
++          <svg class="carriage-dial" viewBox="0 0 100 100" aria-hidden="true">
++            <defs>
++              <linearGradient id="carriageBrass" x1="0" y1="0" x2="1" y2="1">
++                <stop offset="0" stop-color="#F3DD9A"></stop>
++                <stop offset=".5" stop-color="#B8963F"></stop>
++                <stop offset="1" stop-color="#6E5220"></stop>
++              </linearGradient>
++              <radialGradient id="carriageIvory" cx="40%" cy="35%" r="75%">
++                <stop offset="0" stop-color="#FFF9EC"></stop>
++                <stop offset="1" stop-color="#EADCB8"></stop>
++              </radialGradient>
++            </defs>
++            <circle cx="50" cy="50" r="49.5" fill="url(#carriageBrass)"></circle>
++            <circle cx="50" cy="50" r="46" fill="url(#carriageIvory)"></circle>
++            <path class="arc" d="M20 50a30 30 0 0 1 60 0"></path>
++            <path class="ticks-minor" d="M54.44 7.73L54.65 5.74M58.84 8.43L59.25 6.47M63.13 9.58L63.75 7.68M67.29 11.17L68.10 9.35M74.98 15.62L76.16 14.00M78.44 18.42L79.78 16.93M81.58 21.56L83.07 20.22M84.38 25.02L86.00 23.84M88.83 32.71L90.65 31.90M90.42 36.87L92.32 36.25M91.57 41.16L93.53 40.75M92.27 45.56L94.26 45.35M92.27 54.44L94.26 54.65M91.57 58.84L93.53 59.25M90.42 63.13L92.32 63.75M88.83 67.29L90.65 68.10M84.38 74.98L86.00 76.16M81.58 78.44L83.07 79.78M78.44 81.58L79.78 83.07M74.98 84.38L76.16 86.00M67.29 88.83L68.10 90.65M63.13 90.42L63.75 92.32M58.84 91.57L59.25 93.53M54.44 92.27L54.65 94.26M45.56 92.27L45.35 94.26M41.16 91.57L40.75 93.53M36.87 90.42L36.25 92.32M32.71 88.83L31.90 90.65M25.02 84.38L23.84 86.00M21.56 81.58L20.22 83.07M18.42 78.44L16.93 79.78M15.62 74.98L14.00 76.16M11.17 67.29L9.35 68.10M9.58 63.13L7.68 63.75M8.43 58.84L6.47 59.25M7.73 54.44L5.74 54.65M7.73 45.56L5.74 45.35M8.43 41.16L6.47 40.75M9.58 36.87L7.68 36.25M11.17 32.71L9.35 31.90M15.62 25.02L14.00 23.84M18.42 21.56L16.93 20.22M21.56 18.42L20.22 16.93M25.02 15.62L23.84 14.00M32.71 11.17L31.90 9.35M36.87 9.58L36.25 7.68M41.16 8.43L40.75 6.47M45.56 7.73L45.35 5.74"></path>
++            <path class="ticks-major" d="M70.00 15.36L72.25 11.46M84.64 30.00L88.54 27.75M84.64 70.00L88.54 72.25M70.00 84.64L72.25 88.54M30.00 84.64L27.75 88.54M15.36 70.00L11.46 72.25M15.36 30.00L11.46 27.75M30.00 15.36L27.75 11.46"></path>
++            <g class="numerals"><text x="50.00" y="21.00">XII</text><text x="82.50" y="53.50">III</text><text x="50.00" y="86.00">VI</text><text x="17.50" y="53.50">IX</text></g>
++            <path class="hand" d="M50 24L52.6 47L50 58L47.4 47Z"
++                transform="rotate(${clock.hourAngle} 50 50)"></path>
++            <path class="hand" d="M50 11L51.8 47L50 60L48.2 47Z"
++                transform="rotate(${clock.minuteAngle} 50 50)"></path>
++            <g class="seconds" transform="rotate(${clock.secondAngle} 50 50)">
++              <line x1="50" y1="63" x2="50" y2="13"></line>
++              <circle cx="50" cy="18" r="2"></circle>
++            </g>
++            <circle cx="50" cy="50" r="2.4" fill="#B8963F"></circle>
++          </svg>
++          <div class="carriage-city">${clock.city}</div>
++          <div class="carriage-time">${clock.digital}</div>
++        </div>
 +      </div>
 +    `)}
 +  </div>
@@ -126,14 +259,15 @@
        <cr-most-visited id="mostVisited" .theme="${this.theme_?.mostVisited || null}"
 --- a/chrome/browser/resources/new_tab_page/app.ts
 +++ b/chrome/browser/resources/new_tab_page/app.ts
-@@ -156,6 +156,50 @@
+@@ -156,6 +156,69 @@
    };
  }
  
-+// Carriage: three retro wall clocks on the new tab page.
++// Carriage: three Pullman-window clocks on the new tab page.
 +interface CarriageClock {
 +  city: string;
 +  digital: string;
++  sky: string;
 +  hourAngle: number;
 +  minuteAngle: number;
 +  secondAngle: number;
@@ -154,6 +288,23 @@
 +      hourCycle: 'h23',
 +    }));
 +
++// The sky seen through each window follows that city's hour.
++function carriageSkyFor(hour: number): string {
++  if (hour >= 21 || hour < 5) {
++    return 'night';
++  }
++  if (hour < 7) {
++    return 'dawn';
++  }
++  if (hour < 17) {
++    return 'day';
++  }
++  if (hour < 19) {
++    return 'dusk';
++  }
++  return 'evening';
++}
++
 +function carriageClocksNow(): CarriageClock[] {
 +  const now = new Date();
 +  return CARRIAGE_CLOCK_ZONES.map(([city], i) => {
@@ -167,6 +318,7 @@
 +      city,
 +      digital: `${String(hour).padStart(2, '0')}:${
 +          String(minute).padStart(2, '0')}`,
++      sky: carriageSkyFor(hour),
 +      hourAngle: (hour % 12) * 30 + minute * 0.5,
 +      minuteAngle: minute * 6 + second * 0.1,
 +      secondAngle: second * 6,
@@ -177,7 +329,7 @@
  export class AppElement extends AppElementBase {
    static get is() {
      return 'ntp-app';
-@@ -290,6 +334,8 @@
+@@ -290,6 +353,8 @@
         */
        lazyRender_: {type: Boolean},
  
@@ -186,7 +338,7 @@
        scrolledToTop_: {type: Boolean},
  
        wallpaperSearchButtonAnimationEnabled_: {type: Boolean},
-@@ -426,6 +472,8 @@
+@@ -426,6 +491,8 @@
        loadTimeData.getBoolean('multiLineEnabled');
    protected accessor modulesLoaded_: boolean = false;
    protected accessor lazyRender_: boolean = false;
@@ -195,7 +347,7 @@
    protected accessor scrolledToTop_: boolean =
        document.documentElement.scrollTop <= 0;
    protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
-@@ -542,6 +590,9 @@
+@@ -542,6 +609,9 @@
  
    override connectedCallback() {
      super.connectedCallback();
@@ -205,7 +357,7 @@
      realboxCanShowSecondarySideMediaQueryList.addEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
-@@ -643,6 +694,10 @@
+@@ -643,6 +713,10 @@
  
    override disconnectedCallback() {
      super.disconnectedCallback();
