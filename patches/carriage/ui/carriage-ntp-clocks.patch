@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -563,3 +563,201 @@
+@@ -563,3 +563,202 @@
      -webkit-mask-image: url(icons/link.svg);
    }
  }
@@ -51,9 +51,10 @@
 +
 +#carriageClocks {
 +  display: flex;
-+  gap: clamp(96px, 12vw, 176px);
-+  justify-content: center;
++  gap: 64px;
++  justify-content: space-evenly;
 +  margin-bottom: 52px;
++  width: min(1320px, 94vw);
 +}
 +
 +.carriage-window {

@@ -83,6 +83,7 @@ jobs:
           set -eux
           python3 helium-chromium/utils/generate_resources.py resources/carriage/generate_resources.txt resources/carriage
           python3 helium-chromium/utils/replace_resources.py resources/carriage/carriage_resources.txt resources/carriage build/src
+          python3 .github/scripts/carriage_sync_ntp_css.py patches/carriage/ui/carriage-ntp-clocks.patch build/src/chrome/browser/resources/new_tab_page/app.css
       - uses: ./.github/actions/do-build
         id: build
         with:
