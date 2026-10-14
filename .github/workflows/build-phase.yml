@@ -6,6 +6,7 @@ defaults:
 
 permissions:
   contents: read
+  actions: read
 
 on:
   workflow_call:
@@ -20,6 +21,11 @@ on:
         required: false
         type: boolean
         default: false
+      from_run_id:
+        description: Carriage — resume from another run's checkpoint
+        required: false
+        type: string
+        default: ''
     outputs:
       status:
         value: ${{ jobs.build_job.outputs.status }}
@@ -59,14 +65,24 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: github_build_logs_${{ inputs.arch }}
+          run-id: ${{ inputs.from_run_id || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download build
         if: ${{ inputs.resume }}
         uses: actions/download-artifact@v4
         with:
           name: github_build_artifact_${{ inputs.arch }}
+          run-id: ${{ inputs.from_run_id || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Unpack archive of build
         if: ${{ inputs.resume }}
         run: ./github_unpack_archive.sh
+      - name: Refresh Carriage resources in the resumed tree
+        if: ${{ inputs.from_run_id != '' }}
+        run: |
+          set -eux
+          python3 helium-chromium/utils/generate_resources.py resources/carriage/generate_resources.txt resources/carriage
+          python3 helium-chromium/utils/replace_resources.py resources/carriage/carriage_resources.txt resources/carriage build/src
       - uses: ./.github/actions/do-build
         id: build
         with:
