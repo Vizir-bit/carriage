@@ -40,8 +40,9 @@ hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$tmp/$DMG" >/dev/null
 
 if [ -d /Applications/Carriage.app ]; then
   echo "Moving the previous Carriage to the Trash…"
-  osascript -e 'tell application "Finder" to delete (POSIX file "/Applications/Carriage.app" as alias)' >/dev/null 2>&1 \
-    || sudo mv /Applications/Carriage.app "$HOME/.Trash/Carriage (previous).app"
+  mv /Applications/Carriage.app "$HOME/.Trash/Carriage (previous $(date +%Y%m%d-%H%M%S)).app" 2>/dev/null \
+    || osascript -e 'tell application "Finder" to delete (POSIX file "/Applications/Carriage.app" as alias)' >/dev/null 2>&1 \
+    || sudo mv /Applications/Carriage.app "$HOME/.Trash/Carriage (previous $(date +%Y%m%d-%H%M%S)).app"
 fi
 
 echo "Installing into /Applications…"
