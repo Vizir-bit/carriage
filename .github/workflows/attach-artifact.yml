@@ -1,0 +1,16 @@
+name: Attach a run artifact to a release
+on:
+  workflow_dispatch:
+    inputs:
+      run_id: {required: true}
+      name: {required: true}
+      tag: {required: true}
+permissions: {contents: write, actions: read}
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: '${{ inputs.name }}', run-id: '${{ inputs.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}', path: a}
+      - env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+        run: gh release upload "${{ inputs.tag }}" a/* --clobber --repo "${{ github.repository }}"
