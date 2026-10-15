@@ -156,173 +156,25 @@ export interface AppElement {
   };
 }
 
-// Carriage: four Pullman-window clocks on the new tab page.
+// Carriage: four Pullman-window clocks on the new tab page. The sky in each
+// window follows the sun over that city, and the moon shows its phase after
+// dark. Both are worked out on the device; the page makes no request.
 interface CarriageClock {
   city: string;
   digital: string;
   sky: string;
+  moon: string;
   hourAngle: number;
   minuteAngle: number;
   secondAngle: number;
-  plaque: CarriagePlaque;
 }
 
-// Carriage: a brass plaque under each window with a thermometer and a
-// sunshine gauge. Data comes from Open-Meteo (open data, no key, no cookies):
-// one request for the four cities, at most every 15 minutes, cached locally.
-interface CarriageWeather {
-  temp: number;
-  isDay: boolean;
-  cloud: number;
-  uv: number;
-  sunHours: number;
-  sunShare: number;
-}
-
-interface CarriagePlaque {
-  title: string;
-  tempText: string;
-  mercuryTop: number;
-  mercuryHeight: number;
-  sunDash: string;
-  sunOpacity: string;
-  sunText: string;
-  sunLabel: string;
-}
-
-const CARRIAGE_WEATHER_URL = 'https://api.open-meteo.com/v1/forecast' +
-    '?latitude=51.5074,48.8566,41.9028,55.7558' +
-    '&longitude=-0.1278,2.3522,12.4964,37.6173' +
-    '&current=temperature_2m,is_day,cloud_cover,uv_index' +
-    '&daily=sunshine_duration,daylight_duration&timezone=auto&forecast_days=1';
-const CARRIAGE_WEATHER_KEY = 'carriageWeather.v1';
-const CARRIAGE_WEATHER_TTL_MS = 15 * 60 * 1000;
-const CARRIAGE_SUN_ARC = 50.27;
-
-let carriageWeatherState: Array<CarriageWeather|null> = [];
-
-// The subset of an Open-Meteo forecast entry read by the plaques.
-interface OpenMeteoEntry {
-  current?: {
-    temperature_2m?: number,
-    is_day?: number,
-    cloud_cover?: number,
-    uv_index?: number,
-  };
-  daily?: {
-    sunshine_duration?: number[],
-    daylight_duration?: number[],
-  };
-}
-
-function carriageWeatherParse(data: unknown): Array<CarriageWeather|null> {
-  const list = (Array.isArray(data) ? data : [data]) as OpenMeteoEntry[];
-  return list.map(entry => {
-    const current = entry?.current;
-    const temp = current?.temperature_2m;
-    if (typeof temp !== 'number') {
-      return null;
-    }
-    const sun = entry.daily?.sunshine_duration?.[0] ?? NaN;
-    const light = entry.daily?.daylight_duration?.[0] ?? NaN;
-    return {
-      temp,
-      isDay: current?.is_day === 1,
-      cloud: current?.cloud_cover ?? 0,
-      uv: current?.uv_index ?? NaN,
-      sunHours: sun / 3600,
-      sunShare: light > 0 ? Math.max(0, Math.min(1, sun / light)) : 0,
-    };
-  });
-}
-
-function carriageWeatherLoad(): number {
-  try {
-    const raw = window.localStorage.getItem(CARRIAGE_WEATHER_KEY);
-    if (!raw) {
-      return 0;
-    }
-    const cached = JSON.parse(raw);
-    carriageWeatherState = carriageWeatherParse(cached.data);
-    return Number(cached.at) || 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-async function carriageWeatherRefresh() {
-  const at = carriageWeatherLoad();
-  if (Date.now() - at < CARRIAGE_WEATHER_TTL_MS) {
-    return;
-  }
-  try {
-    const response = await fetch(CARRIAGE_WEATHER_URL, {
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
-      cache: 'no-store',
-    });
-    if (!response.ok) {
-      return;
-    }
-    const data = await response.json();
-    carriageWeatherState = carriageWeatherParse(data);
-    window.localStorage.setItem(
-        CARRIAGE_WEATHER_KEY, JSON.stringify({at: Date.now(), data}));
-  } catch (e) {
-    // Offline: keep showing the last cached reading.
-  }
-}
-
-function carriageFormatHours(hours: number): string {
-  if (!isFinite(hours)) {
-    return '\u2013';
-  }
-  const minutes = Math.round(hours * 60);
-  return `${Math.floor(minutes / 60)} h ${
-      String(minutes % 60).padStart(2, '0')}`;
-}
-
-function carriagePlaqueFor(city: string, w: CarriageWeather|null):
-    CarriagePlaque {
-  if (!w) {
-    return {
-      title: `${city}: weather not available yet`,
-      tempText: '\u2013',
-      mercuryTop: 36,
-      mercuryHeight: 6,
-      sunDash: '0 60',
-      sunOpacity: '0.25',
-      sunText: '\u2013',
-      sunLabel: 'SUN',
-    };
-  }
-  // The mercury spans -20 °C (empty) to 40 °C (full).
-  const level = Math.max(0, Math.min(1, (w.temp + 20) / 60));
-  const mercuryTop = 36 - level * 30;
-  const uv = isFinite(w.uv) ? Math.round(w.uv) : null;
-  const sunOpacity =
-      w.isDay ? Math.max(0.35, 1 - (isFinite(w.cloud) ? w.cloud : 0) / 140) :
-                0.25;
-  return {
-    title: `${city}: ${w.temp.toFixed(1)} \u00b0C, sunshine today ${
-        carriageFormatHours(w.sunHours)} (${
-        Math.round(w.sunShare * 100)} % of daylight)${
-        uv !== null ? `, UV index ${uv}` : ''}`,
-    tempText: `${Math.round(w.temp)}\u00b0`,
-    mercuryTop,
-    mercuryHeight: 42 - mercuryTop,
-    sunDash: `${(w.sunShare * CARRIAGE_SUN_ARC).toFixed(2)} 60`,
-    sunOpacity: sunOpacity.toFixed(2),
-    sunText: carriageFormatHours(w.sunHours),
-    sunLabel: uv !== null ? `SUN \u00b7 UV ${uv}` : 'SUN',
-  };
-}
-
-const CARRIAGE_CLOCK_ZONES: Array<[string, string]> = [
-  ['London', 'Europe/London'],
-  ['Paris', 'Europe/Paris'],
-  ['Roma', 'Europe/Rome'],
-  ['Moscow', 'Europe/Moscow'],
+// City, time zone, latitude and longitude (degrees north and east).
+const CARRIAGE_CLOCK_ZONES: Array<[string, string, number, number]> = [
+  ['London', 'Europe/London', 51.51, -0.13],
+  ['Paris', 'Europe/Paris', 48.86, 2.35],
+  ['Roma', 'Europe/Rome', 41.9, 12.5],
+  ['Moscow', 'Europe/Moscow', 55.76, 37.62],
 ];
 
 const carriageClockFormatters = CARRIAGE_CLOCK_ZONES.map(
@@ -334,26 +186,57 @@ const carriageClockFormatters = CARRIAGE_CLOCK_ZONES.map(
       hourCycle: 'h23',
     }));
 
-// The sky seen through each window follows that city's hour.
-function carriageSkyFor(hour: number): string {
-  if (hour >= 21 || hour < 5) {
-    return 'night';
-  }
-  if (hour < 7) {
-    return 'dawn';
-  }
-  if (hour < 17) {
+const CARRIAGE_RAD = Math.PI / 180;
+
+// The sky seen through a window, from the height of the sun above the city's
+// horizon: day, the glow of dawn or dusk, blue twilight, then night. `days`
+// counts from 1 January 2000 at noon UTC; the low-precision solar formulas
+// used here are good to about a hundredth of a degree.
+function carriageSkyFor(days: number, lat: number, lon: number): string {
+  const anomaly = (357.529 + 0.98560028 * days) * CARRIAGE_RAD;
+  const meanLongitude = 280.459 + 0.98564736 * days;
+  const longitude = (meanLongitude + 1.915 * Math.sin(anomaly) +
+                     0.02 * Math.sin(2 * anomaly)) * CARRIAGE_RAD;
+  const obliquity = (23.439 - 0.00000036 * days) * CARRIAGE_RAD;
+  const declination = Math.asin(Math.sin(obliquity) * Math.sin(longitude));
+  const rightAscension = Math.atan2(
+      Math.cos(obliquity) * Math.sin(longitude), Math.cos(longitude));
+  const sidereal = 280.46061837 + 360.98564736629 * days + lon;
+  const hourAngle = sidereal * CARRIAGE_RAD - rightAscension;
+  const latitude = lat * CARRIAGE_RAD;
+  const sinElevation = Math.sin(latitude) * Math.sin(declination) +
+      Math.cos(latitude) * Math.cos(declination) * Math.cos(hourAngle);
+  const elevation = Math.asin(sinElevation) / CARRIAGE_RAD;
+  if (elevation >= 5) {
     return 'day';
   }
-  if (hour < 19) {
-    return 'dusk';
+  if (elevation >= -5) {
+    return Math.sin(hourAngle) < 0 ? 'dawn' : 'dusk';
   }
-  return 'evening';
+  return elevation >= -12 ? 'twilight' : 'night';
+}
+
+// The lit part of the moon, as a path on a disc of radius 7 set in the sky
+// between the dial and the arch of the window; none at new moon. The phase
+// is the mean one, right to within a day.
+function carriageMoonFor(days: number): string {
+  const phase = (((days - 5.26) / 29.530589) % 1 + 1) % 1;
+  const cos = Math.cos(2 * Math.PI * phase);
+  if (cos > 0.94) {
+    return '';
+  }
+  const waxing = phase < 0.5;
+  const crescent = cos > 0;
+  return `M139 26A7 7 0 0 ${waxing ? 1 : 0} 139 40A${
+      (7 * Math.abs(cos)).toFixed(2)} 7 0 0 ${
+      waxing === crescent ? 0 : 1} 139 26Z`;
 }
 
 function carriageClocksNow(): CarriageClock[] {
   const now = new Date();
-  return CARRIAGE_CLOCK_ZONES.map(([city], i) => {
+  const days = now.getTime() / 86400000 - 10957.5;
+  const moon = carriageMoonFor(days);
+  return CARRIAGE_CLOCK_ZONES.map(([city, , lat, lon], i) => {
     const parts = carriageClockFormatters[i]!.formatToParts(now);
     const get = (type: string) =>
         Number(parts.find(part => part.type === type)?.value ?? 0);
@@ -364,11 +247,11 @@ function carriageClocksNow(): CarriageClock[] {
       city,
       digital: `${String(hour).padStart(2, '0')}:${
           String(minute).padStart(2, '0')}`,
-      sky: carriageSkyFor(hour),
+      sky: carriageSkyFor(days, lat, lon),
+      moon,
       hourAngle: (hour % 12) * 30 + minute * 0.5,
       minuteAngle: minute * 6 + second * 0.1,
       secondAngle: second * 6,
-      plaque: carriagePlaqueFor(city, carriageWeatherState[i] ?? null),
     };
   });
 }
@@ -647,7 +530,6 @@ export class AppElement extends AppElementBase {
   protected accessor lazyRender_: boolean = false;
   protected accessor carriageClocks_: CarriageClock[] = carriageClocksNow();
   private carriageClockTimer_: number|null = null;
-  private carriageWeatherTimer_: number|null = null;
   protected accessor scrolledToTop_: boolean =
       document.documentElement.scrollTop <= 0;
   protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
@@ -762,14 +644,18 @@ export class AppElement extends AppElementBase {
     window.navigator.virtualKeyboard.overlaysContent = true;
   }
 
+  // Carriage: redraw the clocks on each whole second, so that the second
+  // hand neither drifts nor skips.
+  private carriageScheduleTick_() {
+    this.carriageClockTimer_ = window.setTimeout(() => {
+      this.carriageClocks_ = carriageClocksNow();
+      this.carriageScheduleTick_();
+    }, 1000 - Date.now() % 1000);
+  }
+
   override connectedCallback() {
     super.connectedCallback();
-    carriageWeatherRefresh();
-    this.carriageClockTimer_ = window.setInterval(() => {
-      this.carriageClocks_ = carriageClocksNow();
-    }, 1000);
-    this.carriageWeatherTimer_ =
-        window.setInterval(() => carriageWeatherRefresh(), 60 * 1000);
+    this.carriageScheduleTick_();
     realboxCanShowSecondarySideMediaQueryList.addEventListener(
         'change', this.onRealboxCanShowSecondarySideChanged_);
 
@@ -872,12 +758,8 @@ export class AppElement extends AppElementBase {
   override disconnectedCallback() {
     super.disconnectedCallback();
     if (this.carriageClockTimer_ !== null) {
-      window.clearInterval(this.carriageClockTimer_);
+      window.clearTimeout(this.carriageClockTimer_);
       this.carriageClockTimer_ = null;
-    }
-    if (this.carriageWeatherTimer_ !== null) {
-      window.clearInterval(this.carriageWeatherTimer_);
-      this.carriageWeatherTimer_ = null;
     }
     realboxCanShowSecondarySideMediaQueryList.removeEventListener(
         'change', this.onRealboxCanShowSecondarySideChanged_);

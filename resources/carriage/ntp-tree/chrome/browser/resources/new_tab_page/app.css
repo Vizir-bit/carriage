@@ -564,8 +564,8 @@ ntp-lens-upload-dialog {
   }
 }
 
-/* Carriage: Pullman carriage. Mahogany panelling, brass, and three arched
-   windows whose sky follows each city's time of day. */
+/* Carriage: Pullman carriage. Mahogany panelling, brass, and four arched
+   windows whose sky follows the sun over each city. */
 #carriagePanelling {
   background:
       repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.1) 0 2px,
@@ -608,12 +608,46 @@ ntp-lens-upload-dialog {
   padding: 9px 26px 8px 34px;
 }
 
+/* Brass and ivory shared by the four dials. */
+.carriage-defs {
+  height: 0;
+  position: absolute;
+  width: 0;
+}
+
 #carriageClocks {
   display: flex;
   gap: clamp(20px, 3.2vw, 64px);
   justify-content: space-evenly;
   margin-bottom: 52px;
   width: min(1320px, 94vw);
+}
+
+.carriage-car {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* In a narrow browser window the four windows shrink together instead of
+   running off the page. */
+@media (max-width: 900px) {
+  .carriage-car {
+    zoom: 0.8;
+  }
+}
+
+@media (max-width: 720px) {
+  .carriage-car {
+    zoom: 0.64;
+  }
+}
+
+@media (max-width: 580px) {
+  .carriage-car {
+    zoom: 0.5;
+  }
 }
 
 .carriage-window {
@@ -643,6 +677,10 @@ ntp-lens-upload-dialog {
   background: linear-gradient(180deg, #070C24, #18224F);
 }
 
+.carriage-glass.sky-twilight {
+  background: linear-gradient(180deg, #141A45, #4B3A7A);
+}
+
 .carriage-glass.sky-dawn {
   background: linear-gradient(180deg, #2B2357, #C9786A);
 }
@@ -653,10 +691,6 @@ ntp-lens-upload-dialog {
 
 .carriage-glass.sky-dusk {
   background: linear-gradient(180deg, #3A2E66, #E39A62);
-}
-
-.carriage-glass.sky-evening {
-  background: linear-gradient(180deg, #141A45, #4B3A7A);
 }
 
 .carriage-stars {
@@ -680,6 +714,12 @@ ntp-lens-upload-dialog {
 .carriage-stars .large {
   opacity: 0.9;
   stroke-width: 2;
+}
+
+.carriage-stars .moon {
+  fill: #FFF3D2;
+  filter: drop-shadow(0 0 3px rgba(255, 236, 190, 0.6));
+  stroke: none;
 }
 
 .sky-day .carriage-stars {
@@ -739,129 +779,17 @@ ntp-lens-upload-dialog {
   fill: #9E2B25;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .carriage-dial .seconds {
+    display: none;
+  }
+}
+
 .carriage-city,
 .carriage-time {
   font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
   position: relative;
   text-shadow: 0 1px 3px rgba(20, 8, 4, 0.75);
-}
-
-.carriage-car {
-  align-items: center;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.carriage-plaque {
-  align-items: center;
-  background: linear-gradient(170deg, #F3DD9A, #B8963F 55%, #8C6A2C);
-  border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 #FFF2C0;
-  box-sizing: border-box;
-  display: flex;
-  gap: 6px;
-  height: 62px;
-  justify-content: space-around;
-  padding: 6px 10px;
-  width: 190px;
-}
-
-.carriage-gauge {
-  align-items: center;
-  display: flex;
-  flex-direction: row;
-  gap: 5px;
-  position: static;
-}
-
-.carriage-thermo {
-  flex: 0 0 18px;
-  height: 46px;
-  position: relative;
-  width: 18px;
-}
-
-.carriage-thermo .tube {
-  fill: #FFF9EC;
-  stroke: #5A3E18;
-  stroke-width: 1;
-}
-
-.carriage-thermo .bulb-ring {
-  fill: #FFF9EC;
-  stroke: #5A3E18;
-  stroke-width: 1;
-}
-
-.carriage-thermo .mercury {
-  fill: #A3271F;
-}
-
-.carriage-thermo .ticks {
-  fill: none;
-  stroke: #3B2A1A;
-  stroke-width: 0.8;
-}
-
-.carriage-sun {
-  flex: 0 0 40px;
-  height: 28px;
-  position: relative;
-  width: 40px;
-}
-
-.carriage-sun .track {
-  fill: none;
-  stroke: rgba(59, 26, 16, 0.35);
-  stroke-linecap: round;
-  stroke-width: 4;
-}
-
-.carriage-sun .fill {
-  fill: none;
-  stroke: #E8A317;
-  stroke-linecap: round;
-  stroke-width: 4;
-}
-
-.carriage-sun .disc circle {
-  fill: #F6C343;
-  stroke: #8C5A10;
-  stroke-width: 0.8;
-}
-
-.carriage-sun .disc path {
-  fill: none;
-  stroke: #8C5A10;
-  stroke-linecap: round;
-  stroke-width: 1.2;
-}
-
-.carriage-reading {
-  align-items: flex-start;
-  color: #3B1A10;
-  display: flex;
-  flex-direction: column;
-  position: static;
-  text-align: left;
-  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
-  line-height: 1.1;
-}
-
-.carriage-value {
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.carriage-label {
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  opacity: 0.8;
-  white-space: nowrap;
 }
 
 .carriage-city {
@@ -879,4 +807,22 @@ ntp-lens-upload-dialog {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.2em;
   margin-top: 5px;
+}
+
+/* The place for an optional widget under each window: a brass plaque, drawn
+   only when a widget fills it. None does by default. */
+.carriage-plaque {
+  background: linear-gradient(170deg, #F3DD9A, #B8963F 55%, #8C6A2C);
+  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 #FFF2C0;
+  box-sizing: border-box;
+  color: #3B1A10;
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  min-height: 62px;
+  padding: 6px 10px;
+  width: 190px;
+}
+
+.carriage-plaque:empty {
+  display: none;
 }

@@ -1,0 +1,67 @@
+name: Orient-Express — update the Pullman new tab page in a released build
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag: {description: Release to patch, required: true, default: v0.19.2.1-orient-express.2}
+      tag: {description: New release tag, required: true, default: v0.19.2.1-orient-express.3}
+      publish: {description: Publish a release, required: true, default: 'true'}
+      preview_at: {description: 'Layout test only: show the clocks at this UTC time, e.g. 2026-12-21T17:30:00Z (never published)', required: false, default: ''}
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch, sign, test, package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_AT: ${{ inputs.preview_at }}
+        run: |
+          set -euxo pipefail
+          if [ -n "$PREVIEW_AT" ] && [ "${{ inputs.publish }}" = true ]; then
+            echo "preview_at is for layout tests: set publish to false"; exit 1
+          fi
+          pip3 install --break-system-packages -q brotli || pip3 install -q brotli
+          gh release download "${{ inputs.source_tag }}" --repo "${{ github.repository }}" --pattern '*.dmg' --dir dl
+          mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dl/*.dmg
+          mkdir -p out; ditto "$mnt/Orient-Express.app" out/Orient-Express.app; hdiutil detach "$mnt"
+          app=out/Orient-Express.app
+          pak="$app/Contents/Frameworks/Carriage Framework.framework/Versions/155.0.8059.39/Resources/resources.pak"
+          python3 scripts/ntp_pullman_patch.py "$pak" ${PREVIEW_AT:+--at "$PREVIEW_AT"}
+          xattr -cr "$app"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          # Render the new tab page, show any page error, and screenshot it
+          for size in 1440,900 1024,768 800,700; do
+            "$app/Contents/MacOS/Carriage" --headless=new --no-first-run --use-mock-keychain \
+               --user-data-dir="$RUNNER_TEMP/p-$size" --enable-logging=stderr --v=0 \
+               --virtual-time-budget=5000 --window-size=$size \
+               --screenshot="$PWD/ntp-${size%%,*}.png" chrome://new-tab-page/ 2>&1 \
+               | grep -i -E "console|uncaught|refused|blocked" | head -20 || true
+          done
+          ls -la *.png || true
+          ln -s /Applications out/Applications
+          version=${{ inputs.tag }}; version=${version#v}; version=${version/-orient-express./-}
+          dmg=orient-express_${version}_arm64-macos.dmg
+          hdiutil create -volname Orient-Express -srcfolder out -ov -format UDZO "$dmg"
+          sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1); echo "$sha  $dmg" > "$dmg.sha256"
+          echo "DMG=$dmg" >> $GITHUB_ENV; echo "SHA=$sha" >> $GITHUB_ENV
+      - name: Share screenshots (dev)
+        if: inputs.publish != 'true'
+        env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+        run: |
+          gh release delete dev-dump --repo "${{ github.repository }}" -y --cleanup-tag || true
+          gh release create dev-dump *.png --repo "${{ github.repository }}" --prerelease --title "dev dump (temporary)" --notes temporary
+      - name: Publish
+        if: inputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "Orient-Express, third test build: the sky in each Pullman window now follows the sun over its city (dawn, day, dusk, blue twilight, night), and the moon shows its phase after dark. Both are worked out on the Mac: the new tab page makes no network request." "" "The clocks tick exactly on the second, the windows keep their shape in a narrow browser window, and the second hand rests when macOS is set to reduce motion. Under each window there is a place for an optional widget; it stays empty unless one is added." "" "Same browser otherwise (Helium 0.19.2.1 / Chromium 155). Not signed by Apple: the first time, right-click Orient-Express in Applications and choose Open." "" "sha256: $SHA" > notes.md
+          gh release create "${{ inputs.tag }}" "$DMG" "$DMG.sha256" --repo "${{ github.repository }}" --prerelease \
+            --title "Orient-Express — skies that follow the sun (Apple Silicon)" --notes-file notes.md
+          gh release upload "${{ inputs.tag }}" *.png --repo "${{ github.repository }}" || true

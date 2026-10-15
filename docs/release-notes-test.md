@@ -1,9 +1,10 @@
-Carriage version 3 — Pullman carriage with weather instruments. Test build for Apple Silicon Macs (macOS 12 or later). The Orient-Express release is this same build under its own name.
+Carriage version 3 — Pullman carriage, skies that follow the sun. Test build for Apple Silicon Macs (macOS 12 or later). The Orient-Express release is this same build under its own name.
 
 What's in it
-- New tab page styled as a 1930s Pullman carriage: mahogany panelling, brass bands and nameplate, and four clocks (London, Paris, Roma, Moscow) in arched windows, each window's sky following that city's time of day
-- Under each window, a brass plaque with a thermometer (current temperature) and a sunshine gauge (hours of sun today, share of daylight, UV index)
-- Weather from Open-Meteo (open data, no account or key): one request for the four cities at most every 15 minutes, without cookies or referrer, cached locally; the new tab page may connect to api.open-meteo.com and nothing else outside the browser
+- New tab page styled as a 1930s Pullman carriage: mahogany panelling, brass bands and nameplate, and four clocks (London, Paris, Roma, Moscow) in arched windows
+- The sky in each window follows the sun over its city (dawn, day, dusk, blue twilight, night), through the seasons, and the moon shows its phase after dark; both are worked out on the Mac, and the new tab page makes no network request
+- The clocks tick exactly on the second; the windows keep their shape in a narrow browser window; the second hand rests when macOS is set to reduce motion
+- Under each window, a place for an optional widget, empty unless one is added
 - Built on Helium 0.19.2.1 / Chromium 155.0.8059.39 (ungoogled-chromium), uBlock Origin included
 - Chrome Web Store extensions install and update directly from Google, as in Chrome and Brave
 

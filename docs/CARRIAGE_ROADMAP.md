@@ -22,7 +22,7 @@ Unlike Brave Origin, Carriage is free and open source (GPL-3.0) on every platfor
 | C2 | Look, first pass: typewriter-key icon, wordmark, walnut/paper default colours | Branch `carriage-look` |
 | C3 | Origin-style core: Web Store direct to Google (done on branch); Helium services off by default; uBlock filter lists fetched from their own sources; network audit proving no other outbound calls | In progress |
 | C4 | Updates: Carriage's own signed update channel (Sparkle + GitHub Releases); automated tracking of Helium/Chromium security releases | Planned |
-| C5 | Extras panel, like Origin's upgrade panel: Helium's extension proxy, bangs and any future extra, each off by default | Planned |
+| C5 | Extras panel, like Origin's upgrade panel: Helium's extension proxy, bangs, new-tab widgets (the place under each Pullman window) and any future extra, each off by default | Planned |
 | C6 | Typewriter character, deeper: tab strip and address strip, new-tab sheet, privacy ledger, optional key sounds | Planned |
 | C7 | Apple signing and notarisation; first public release | Planned |
 | C8 | Windows, then Linux | Later |
