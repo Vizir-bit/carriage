@@ -36,14 +36,10 @@ jobs:
                   for m in re.finditer(rb'Europe/Moscow|carriageClocks\s*\{', raw):
                       print(f, rid, k, raw[max(0, m.start()-200):m.end()+160])
           PY
-          for f in $(find "$app" -name '*.pak'); do
-            if python3 scripts/pak_patch.py "$f" 'Europe/Moscow' \
-                '"Europe/Paris"],=>"Europe/Paris"],["Roma","Europe/Rome"],' \
-                "'Europe/Paris'],=>'Europe/Paris'],['Roma','Europe/Rome']," ; then echo "patched JS in $f"; fi
-            python3 scripts/pak_patch.py "$f" 'carriageClocks' \
-                'gap: 64px;=>gap: clamp(20px, 3.2vw, 64px);' \
-                'gap:64px;=>gap:clamp(20px,3.2vw,64px);' || true
-          done
+          pak="$app/Contents/Frameworks/Carriage Framework.framework/Versions/155.0.8059.39/Resources/resources.pak"
+          python3 scripts/pak_patch.py "$pak" 'CARRIAGE_CLOCK_ZONES' \
+            '["Paris","Europe/Paris"],=>["Paris","Europe/Paris"],["Roma","Europe/Rome"],' \
+            '#carriageClocks{display:flex;gap:64px;=>#carriageClocks{display:flex;gap:clamp(20px,3.2vw,64px);'
           # Verify Roma is present
           python3 - "$app" <<'PY'
           import sys, glob
@@ -53,7 +49,7 @@ jobs:
               enc, order, res, al = p.read(f)
               for rid in order:
                   raw = p.decode(res[rid])[1]
-                  if b'Europe/Rome' in raw and b'Europe/Moscow' in raw: ok = True; print('Roma OK in', f, rid)
+                  if b'["Roma","Europe/Rome"]' in raw and b'gap:clamp(20px,3.2vw,64px)' in raw: ok = True; print('Roma OK in', f, rid)
           sys.exit(0 if ok else 'Roma not inserted')
           PY
           xattr -cr "$app"
