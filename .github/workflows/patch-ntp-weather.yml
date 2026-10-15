@@ -1,0 +1,54 @@
+name: Orient-Express — add weather instruments to a released build
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag: {description: Release to patch, required: true, default: v0.19.2.1-orient-express.2}
+      tag: {description: New release tag, required: true, default: v0.19.2.1-orient-express.3}
+      publish: {description: Publish a release, required: true, default: 'true'}
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch, sign, test, package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          pip3 install --break-system-packages -q brotli || pip3 install -q brotli
+          gh release download "${{ inputs.source_tag }}" --repo "${{ github.repository }}" --pattern '*.dmg' --dir dl
+          mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dl/*.dmg
+          mkdir -p out; ditto "$mnt/Orient-Express.app" out/Orient-Express.app; hdiutil detach "$mnt"
+          app=out/Orient-Express.app
+          pak="$app/Contents/Frameworks/Carriage Framework.framework/Versions/155.0.8059.39/Resources/resources.pak"
+          python3 scripts/ntp_weather_patch.py "$pak"
+          xattr -cr "$app"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          # Render the new tab page and screenshot it
+          "$app/Contents/MacOS/Carriage" --headless=new --no-first-run --user-data-dir="$RUNNER_TEMP/p" \
+             --virtual-time-budget=15000 --window-size=1440,900 --screenshot="$PWD/ntp-1440.png" chrome://new-tab-page/ || true
+          "$app/Contents/MacOS/Carriage" --headless=new --no-first-run --user-data-dir="$RUNNER_TEMP/p" \
+             --virtual-time-budget=15000 --window-size=1024,768 --screenshot="$PWD/ntp-1024.png" chrome://new-tab-page/ || true
+          ls -la *.png || true
+          ln -s /Applications out/Applications
+          dmg=orient-express_0.19.2.1-3_arm64-macos.dmg
+          hdiutil create -volname Orient-Express -srcfolder out -ov -format UDZO "$dmg"
+          sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1); echo "$sha  $dmg" > "$dmg.sha256"
+          echo "DMG=$dmg" >> $GITHUB_ENV; echo "SHA=$sha" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with: {name: screenshots, path: '*.png', if-no-files-found: warn}
+      - name: Publish
+        if: inputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "Orient-Express, third test build: a brass instrument plaque under each Pullman window, with a thermometer (current temperature) and a sunshine gauge (hours of sun today, share of daylight, UV index) for London, Paris, Roma and Moscow." "" "Weather comes from Open-Meteo (open data, no account or key): one request for the four cities at most every 15 minutes, without cookies or referrer, cached on the Mac." "" "Same browser otherwise (Helium 0.19.2.1 / Chromium 155). Not signed by Apple: the first time, right-click Orient-Express in Applications and choose Open." "" "sha256: $SHA" > notes.md
+          gh release create "${{ inputs.tag }}" "$DMG" "$DMG.sha256" --repo "${{ github.repository }}" --prerelease \
+            --title "Orient-Express — thermometers and sunshine gauges (Apple Silicon)" --notes-file notes.md
+          gh release upload "${{ inputs.tag }}" *.png --repo "${{ github.repository }}" || true
