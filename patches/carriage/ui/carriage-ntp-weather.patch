@@ -1,0 +1,381 @@
+--- a/chrome/browser/resources/new_tab_page/app.css
++++ b/chrome/browser/resources/new_tab_page/app.css
+@@ -746,6 +746,124 @@ ntp-lens-upload-dialog {
+   text-shadow: 0 1px 3px rgba(20, 8, 4, 0.75);
+ }
+ 
++.carriage-car {
++  align-items: center;
++  display: flex;
++  flex-direction: column;
++  gap: 10px;
++}
++
++.carriage-plaque {
++  align-items: center;
++  background: linear-gradient(170deg, #F3DD9A, #B8963F 55%, #8C6A2C);
++  border-radius: 8px;
++  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 #FFF2C0;
++  box-sizing: border-box;
++  display: flex;
++  gap: 6px;
++  height: 62px;
++  justify-content: space-around;
++  padding: 6px 10px;
++  width: 190px;
++}
++
++.carriage-gauge {
++  align-items: center;
++  display: flex;
++  flex-direction: row;
++  gap: 5px;
++  position: static;
++}
++
++.carriage-thermo {
++  flex: 0 0 18px;
++  height: 46px;
++  position: relative;
++  width: 18px;
++}
++
++.carriage-thermo .tube {
++  fill: #FFF9EC;
++  stroke: #5A3E18;
++  stroke-width: 1;
++}
++
++.carriage-thermo .bulb-ring {
++  fill: #FFF9EC;
++  stroke: #5A3E18;
++  stroke-width: 1;
++}
++
++.carriage-thermo .mercury {
++  fill: #A3271F;
++}
++
++.carriage-thermo .ticks {
++  fill: none;
++  stroke: #3B2A1A;
++  stroke-width: 0.8;
++}
++
++.carriage-sun {
++  flex: 0 0 40px;
++  height: 28px;
++  position: relative;
++  width: 40px;
++}
++
++.carriage-sun .track {
++  fill: none;
++  stroke: rgba(59, 26, 16, 0.35);
++  stroke-linecap: round;
++  stroke-width: 4;
++}
++
++.carriage-sun .fill {
++  fill: none;
++  stroke: #E8A317;
++  stroke-linecap: round;
++  stroke-width: 4;
++}
++
++.carriage-sun .disc circle {
++  fill: #F6C343;
++  stroke: #8C5A10;
++  stroke-width: 0.8;
++}
++
++.carriage-sun .disc path {
++  fill: none;
++  stroke: #8C5A10;
++  stroke-linecap: round;
++  stroke-width: 1.2;
++}
++
++.carriage-reading {
++  align-items: flex-start;
++  color: #3B1A10;
++  display: flex;
++  flex-direction: column;
++  position: static;
++  text-align: left;
++  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
++  line-height: 1.1;
++}
++
++.carriage-value {
++  font-size: 14px;
++  font-variant-numeric: tabular-nums;
++  font-weight: 700;
++  white-space: nowrap;
++}
++
++.carriage-label {
++  font-size: 8px;
++  font-weight: 600;
++  letter-spacing: 0.18em;
++  opacity: 0.8;
++  white-space: nowrap;
++}
++
+ .carriage-city {
+   color: #F6E7BC;
+   font-size: 12px;
+--- a/chrome/browser/resources/new_tab_page/app.html
++++ b/chrome/browser/resources/new_tab_page/app.html
+@@ -6,6 +6,7 @@
+   <div id="carriagePlate" aria-hidden="true">CARRIAGE</div>
+   <div id="carriageClocks">
+     ${this.carriageClocks_.map(clock => html`
++      <div class="carriage-car">
+       <div class="carriage-window" title="${clock.city} ${clock.digital}">
+         <div class="carriage-glass sky-${clock.sky}">
+           <svg class="carriage-stars" viewBox="0 0 172 232"
+@@ -45,6 +46,42 @@
+           <div class="carriage-time">${clock.digital}</div>
+         </div>
+       </div>
++      <div class="carriage-plaque" title="${clock.plaque.title}">
++        <div class="carriage-gauge">
++          <svg class="carriage-thermo" viewBox="0 0 20 52" aria-hidden="true">
++            <rect x="6" y="2" width="8" height="38" rx="4" class="tube"></rect>
++            <rect x="8" y="${clock.plaque.mercuryTop}" width="4"
++                height="${clock.plaque.mercuryHeight}" rx="2" class="mercury">
++            </rect>
++            <circle cx="10" cy="43" r="6.5" class="bulb-ring"></circle>
++            <circle cx="10" cy="43" r="4.8" class="mercury"></circle>
++            <path class="ticks"
++                d="M15 6h3M15 11h2M15 16h3M15 21h2M15 26h3M15 31h2M15 36h3">
++            </path>
++          </svg>
++          <div class="carriage-reading">
++            <div class="carriage-value">${clock.plaque.tempText}</div>
++            <div class="carriage-label">TEMP</div>
++          </div>
++        </div>
++        <div class="carriage-gauge">
++          <svg class="carriage-sun" viewBox="0 0 44 30" aria-hidden="true">
++            <path class="track" d="M6 26a16 16 0 0 1 32 0"></path>
++            <path class="fill" d="M6 26a16 16 0 0 1 32 0"
++                stroke-dasharray="${clock.plaque.sunDash}"></path>
++            <g class="disc" opacity="${clock.plaque.sunOpacity}">
++              <circle cx="22" cy="23" r="5"></circle>
++              <path d="M22 14.5v2.5M14.5 23h2.5M27 23h2.5M16.7 17.7l1.8 1.8M27.3 17.7l-1.8 1.8">
++              </path>
++            </g>
++          </svg>
++          <div class="carriage-reading">
++            <div class="carriage-value">${clock.plaque.sunText}</div>
++            <div class="carriage-label">${clock.plaque.sunLabel}</div>
++          </div>
++        </div>
++      </div>
++      </div>
+     `)}
+   </div>
+   ${this.lazyRender_ ? html`
+--- a/chrome/browser/resources/new_tab_page/app.ts
++++ b/chrome/browser/resources/new_tab_page/app.ts
+@@ -164,6 +164,144 @@ interface CarriageClock {
+   hourAngle: number;
+   minuteAngle: number;
+   secondAngle: number;
++  plaque: CarriagePlaque;
++}
++
++// Carriage: a brass plaque under each window with a thermometer and a
++// sunshine gauge. Data comes from Open-Meteo (open data, no key, no cookies):
++// one request for the four cities, at most every 15 minutes, cached locally.
++interface CarriageWeather {
++  temp: number;
++  isDay: boolean;
++  cloud: number;
++  uv: number;
++  sunHours: number;
++  sunShare: number;
++}
++
++interface CarriagePlaque {
++  title: string;
++  tempText: string;
++  mercuryTop: number;
++  mercuryHeight: number;
++  sunDash: string;
++  sunOpacity: string;
++  sunText: string;
++  sunLabel: string;
++}
++
++const CARRIAGE_WEATHER_URL = 'https://api.open-meteo.com/v1/forecast' +
++    '?latitude=51.5074,48.8566,41.9028,55.7558' +
++    '&longitude=-0.1278,2.3522,12.4964,37.6173' +
++    '&current=temperature_2m,is_day,cloud_cover,uv_index' +
++    '&daily=sunshine_duration,daylight_duration&timezone=auto&forecast_days=1';
++const CARRIAGE_WEATHER_KEY = 'carriageWeather.v1';
++const CARRIAGE_WEATHER_TTL_MS = 15 * 60 * 1000;
++const CARRIAGE_SUN_ARC = 50.27;
++
++let carriageWeatherState: Array<CarriageWeather|null> = [];
++
++function carriageWeatherParse(data: unknown): Array<CarriageWeather|null> {
++  const list: unknown[] = Array.isArray(data) ? data : [data];
++  return list.map((entry: any) => {
++    const current = entry?.current;
++    const daily = entry?.daily;
++    if (!current || typeof current.temperature_2m !== 'number') {
++      return null;
++    }
++    const sun = Number(daily?.sunshine_duration?.[0] ?? NaN);
++    const light = Number(daily?.daylight_duration?.[0] ?? NaN);
++    return {
++      temp: current.temperature_2m,
++      isDay: current.is_day === 1,
++      cloud: Number(current.cloud_cover ?? 0),
++      uv: Number(current.uv_index ?? NaN),
++      sunHours: sun / 3600,
++      sunShare: light > 0 ? Math.max(0, Math.min(1, sun / light)) : 0,
++    };
++  });
++}
++
++function carriageWeatherLoad(): number {
++  try {
++    const raw = window.localStorage.getItem(CARRIAGE_WEATHER_KEY);
++    if (!raw) {
++      return 0;
++    }
++    const cached = JSON.parse(raw);
++    carriageWeatherState = carriageWeatherParse(cached.data);
++    return Number(cached.at) || 0;
++  } catch (e) {
++    return 0;
++  }
++}
++
++async function carriageWeatherRefresh() {
++  const at = carriageWeatherLoad();
++  if (Date.now() - at < CARRIAGE_WEATHER_TTL_MS) {
++    return;
++  }
++  try {
++    const response = await fetch(CARRIAGE_WEATHER_URL, {
++      credentials: 'omit',
++      referrerPolicy: 'no-referrer',
++      cache: 'no-store',
++    });
++    if (!response.ok) {
++      return;
++    }
++    const data = await response.json();
++    carriageWeatherState = carriageWeatherParse(data);
++    window.localStorage.setItem(
++        CARRIAGE_WEATHER_KEY, JSON.stringify({at: Date.now(), data}));
++  } catch (e) {
++    // Offline: keep showing the last cached reading.
++  }
++}
++
++function carriageFormatHours(hours: number): string {
++  if (!isFinite(hours)) {
++    return '\u2013';
++  }
++  const minutes = Math.round(hours * 60);
++  return `${Math.floor(minutes / 60)} h ${
++      String(minutes % 60).padStart(2, '0')}`;
++}
++
++function carriagePlaqueFor(city: string, w: CarriageWeather|null):
++    CarriagePlaque {
++  if (!w) {
++    return {
++      title: `${city}: weather not available yet`,
++      tempText: '\u2013',
++      mercuryTop: 36,
++      mercuryHeight: 6,
++      sunDash: '0 60',
++      sunOpacity: '0.25',
++      sunText: '\u2013',
++      sunLabel: 'SUN',
++    };
++  }
++  // The mercury spans -20 °C (empty) to 40 °C (full).
++  const level = Math.max(0, Math.min(1, (w.temp + 20) / 60));
++  const mercuryTop = 36 - level * 30;
++  const uv = isFinite(w.uv) ? Math.round(w.uv) : null;
++  const sunOpacity =
++      w.isDay ? Math.max(0.35, 1 - (isFinite(w.cloud) ? w.cloud : 0) / 140) :
++                0.25;
++  return {
++    title: `${city}: ${w.temp.toFixed(1)} \u00b0C, sunshine today ${
++        carriageFormatHours(w.sunHours)} (${
++        Math.round(w.sunShare * 100)} % of daylight)${
++        uv !== null ? `, UV index ${uv}` : ''}`,
++    tempText: `${Math.round(w.temp)}\u00b0`,
++    mercuryTop,
++    mercuryHeight: 42 - mercuryTop,
++    sunDash: `${(w.sunShare * CARRIAGE_SUN_ARC).toFixed(2)} 60`,
++    sunOpacity: sunOpacity.toFixed(2),
++    sunText: carriageFormatHours(w.sunHours),
++    sunLabel: uv !== null ? `SUN \u00b7 UV ${uv}` : 'SUN',
++  };
+ }
+ 
+ const CARRIAGE_CLOCK_ZONES: Array<[string, string]> = [
+@@ -216,6 +354,7 @@ function carriageClocksNow(): CarriageClock[] {
+       hourAngle: (hour % 12) * 30 + minute * 0.5,
+       minuteAngle: minute * 6 + second * 0.1,
+       secondAngle: second * 6,
++      plaque: carriagePlaqueFor(city, carriageWeatherState[i] ?? null),
+     };
+   });
+ }
+@@ -494,6 +633,7 @@ export class AppElement extends AppElementBase {
+   protected accessor lazyRender_: boolean = false;
+   protected accessor carriageClocks_: CarriageClock[] = carriageClocksNow();
+   private carriageClockTimer_: number|null = null;
++  private carriageWeatherTimer_: number|null = null;
+   protected accessor scrolledToTop_: boolean =
+       document.documentElement.scrollTop <= 0;
+   protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
+@@ -610,9 +750,12 @@ export class AppElement extends AppElementBase {
+ 
+   override connectedCallback() {
+     super.connectedCallback();
++    carriageWeatherRefresh();
+     this.carriageClockTimer_ = window.setInterval(() => {
+       this.carriageClocks_ = carriageClocksNow();
+     }, 1000);
++    this.carriageWeatherTimer_ =
++        window.setInterval(() => carriageWeatherRefresh(), 60 * 1000);
+     realboxCanShowSecondarySideMediaQueryList.addEventListener(
+         'change', this.onRealboxCanShowSecondarySideChanged_);
+ 
+@@ -718,6 +861,10 @@ export class AppElement extends AppElementBase {
+       window.clearInterval(this.carriageClockTimer_);
+       this.carriageClockTimer_ = null;
+     }
++    if (this.carriageWeatherTimer_ !== null) {
++      window.clearInterval(this.carriageWeatherTimer_);
++      this.carriageWeatherTimer_ = null;
++    }
+     realboxCanShowSecondarySideMediaQueryList.removeEventListener(
+         'change', this.onRealboxCanShowSecondarySideChanged_);
+ 
+--- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
++++ b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
+@@ -865,6 +865,11 @@ content::WebUIDataSource* CreateAndAddNewTabPageUiHtmlSource(
+   source->OverrideContentSecurityPolicy(
+       network::mojom::CSPDirectiveName::MediaSrc,
+       "media-src blob: data: 'self';");
++  // Carriage: the weather plaques under the Pullman windows read Open-Meteo.
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ConnectSrc,
++      "connect-src chrome://resources chrome://theme 'self' "
++      "https://api.open-meteo.com;");
+ 
+   return source;
+ }
