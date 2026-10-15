@@ -27,4 +27,4 @@ jobs:
               if sys.argv[2].encode() in raw: open(f'dump/res_{rid}.txt','wb').write(raw); print(rid, k, len(raw))
           PY
           gh release delete dev-dump --repo "${{ github.repository }}" -y --cleanup-tag || true
-          gh release create dev-dump dump/* --repo "${{ github.repository }}" --draft --title "dev dump" --notes "temporary"
+          gh release create dev-dump dump/* --repo "${{ github.repository }}" --prerelease --title "dev dump (temporary)" --notes "temporary"
