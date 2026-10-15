@@ -1,0 +1,72 @@
+name: Pullman — repackage a Carriage release as a separate app
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: Carriage release to repackage
+        required: true
+        default: v0.19.2.1-carriage.2
+      tag:
+        description: Pullman release tag
+        required: true
+        default: v0.19.2.1-pullman.1
+
+permissions:
+  contents: write
+
+jobs:
+  repackage:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and repackage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          gh release download "${{ inputs.source_tag }}" --repo "${{ github.repository }}" --pattern '*.dmg' --dir dl
+          src=$(ls dl/*.dmg | head -1)
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$src"
+          mkdir -p out
+          ditto "$mnt/Carriage.app" out/Pullman.app
+          hdiutil detach "$mnt"
+          plist=out/Pullman.app/Contents/Info.plist
+          echo "--- original keys"; /usr/libexec/PlistBuddy -c Print "$plist" | grep -E 'Bundle(Name|DisplayName|Identifier|Executable)|CrProductDirName' || true
+          setkey() { /usr/libexec/PlistBuddy -c "Set :$1 $2" "$plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :$1 string $2" "$plist"; }
+          setkey CFBundleName Pullman
+          setkey CFBundleDisplayName Pullman
+          setkey CFBundleIdentifier app.pullman.browser
+          setkey CrProductDirName app.pullman.browser
+          # Localised app names shown by Finder/Dock
+          find out/Pullman.app/Contents/Resources -maxdepth 2 -name InfoPlist.strings -print0 | while IFS= read -r -d '' f; do
+            plutil -convert xml1 "$f"
+            sed -i '' 's/Carriage/Pullman/g' "$f"
+          done
+          echo "--- new keys"; /usr/libexec/PlistBuddy -c Print "$plist" | grep -E 'Bundle(Name|DisplayName|Identifier|Executable)|CrProductDirName'
+          xattr -cr out/Pullman.app
+          codesign --force --deep --sign - out/Pullman.app
+          codesign --verify --deep --strict --verbose=2 out/Pullman.app
+          # Smoke test: launch headless-ish, check it creates its own profile folder
+          (out/Pullman.app/Contents/MacOS/Carriage --no-first-run --headless=new about:blank & echo $! > pid) ; sleep 25
+          ls "$HOME/Library/Application Support/" | grep -i -E 'pullman|carriage' || true
+          test -d "$HOME/Library/Application Support/app.pullman.browser"
+          kill $(cat pid) || true
+          ln -s /Applications out/Applications
+          dmg=pullman_0.19.2.1_arm64-macos.dmg
+          hdiutil create -volname Pullman -srcfolder out -ov -format UDZO "$dmg"
+          sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
+          echo "$sha  $dmg" > "$dmg.sha256"
+          cat > notes.md <<NOTES
+          Pullman — the Carriage version 2 design (mahogany, brass, three arched world clocks) as a separate app, so it can sit next to Carriage version 1.
+
+          - Its own name, Dock icon entry and profile folder (~/Library/Application Support/app.pullman.browser): bookmarks, history and extensions are kept apart from Carriage.
+          - Same browser as ${{ inputs.source_tag }}: Helium 0.19.2.1 / Chromium 155, uBlock Origin included.
+          - Not signed by Apple: the first time, right-click Pullman in Applications and choose Open.
+
+          sha256: $sha
+          NOTES
+          sed -i '' 's/^          //' notes.md
+          gh release create "${{ inputs.tag }}" "$dmg" "$dmg.sha256" --repo "${{ github.repository }}" \
+            --prerelease --title "Pullman — Carriage version 2 as a separate app (Apple Silicon)" --notes-file notes.md
