@@ -32,7 +32,7 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           # Render the new tab page and screenshot it
           "$app/Contents/MacOS/Carriage" --headless=new --no-first-run --user-data-dir="$RUNNER_TEMP/p" \
-             --virtual-time-budget=15000 --window-size=1440,900 --screenshot="$PWD/ntp-1440.png" chrome://new-tab-page/ || true
+             --enable-logging=stderr --v=0 --virtual-time-budget=15000 --window-size=1440,900 --screenshot="$PWD/ntp-1440.png" chrome://new-tab-page/ 2>&1 | grep -i -E "console|carriage-weather|meteo|refused|blocked|ERR_" | head -40 || true
           "$app/Contents/MacOS/Carriage" --headless=new --no-first-run --user-data-dir="$RUNNER_TEMP/p" \
              --virtual-time-budget=15000 --window-size=1024,768 --screenshot="$PWD/ntp-1024.png" chrome://new-tab-page/ || true
           ls -la *.png || true

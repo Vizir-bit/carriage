@@ -4,7 +4,7 @@ const CARRIAGE_WEATHER_TTL=15*60*1e3;
 let carriageWeatherState=[];
 function carriageWeatherParse(data){return (Array.isArray(data)?data:[data]).map((d=>{const c=d&&d.current||{};const y=d&&d.daily||{};const sun=Number(y.sunshine_duration?.[0]??NaN);const light=Number(y.daylight_duration?.[0]??NaN);return{temp:Number(c.temperature_2m),isDay:c.is_day===1,cloud:Number(c.cloud_cover),uv:Number(c.uv_index),sunHours:sun/3600,sunShare:light>0?Math.max(0,Math.min(1,sun/light)):0}}))}
 function carriageWeatherLoad(){try{const raw=window.localStorage.getItem(CARRIAGE_WEATHER_KEY);if(!raw){return 0}const cached=JSON.parse(raw);carriageWeatherState=carriageWeatherParse(cached.data);return Number(cached.at)||0}catch(e){return 0}}
-async function carriageWeatherRefresh(force){const at=carriageWeatherLoad();if(!force&&Date.now()-at<CARRIAGE_WEATHER_TTL){return}try{const response=await fetch(CARRIAGE_WEATHER_URL,{credentials:"omit",referrerPolicy:"no-referrer",cache:"no-store"});if(!response.ok){return}const data=await response.json();carriageWeatherState=carriageWeatherParse(data);window.localStorage.setItem(CARRIAGE_WEATHER_KEY,JSON.stringify({at:Date.now(),data:data}))}catch(e){}}
+async function carriageWeatherRefresh(force){const at=carriageWeatherLoad();if(!force&&Date.now()-at<CARRIAGE_WEATHER_TTL){return}try{const response=await fetch(CARRIAGE_WEATHER_URL,{credentials:"omit",referrerPolicy:"no-referrer",cache:"no-store"});if(!response.ok){console.warn("carriage-weather: HTTP "+response.status);return}const data=await response.json();carriageWeatherState=carriageWeatherParse(data);window.localStorage.setItem(CARRIAGE_WEATHER_KEY,JSON.stringify({at:Date.now(),data:data}));console.info("carriage-weather: ok "+carriageWeatherState.length)}catch(e){console.warn("carriage-weather: "+(e&&e.message||e))}}
 carriageWeatherRefresh(false);
 window.setInterval((()=>carriageWeatherRefresh(false)),60*1e3);
 function carriageFmtHours(h){if(!isFinite(h)){return"–"}const m=Math.round(h*60);return`${Math.floor(m/60)} h ${String(m%60).padStart(2,"0")}`}
@@ -19,8 +19,8 @@ function carriagePlaque(clock){const w=clock.weather;const has=!!w&&isFinite(w.t
             <path class="ticks" d="M15 6h3M15 11h2M15 16h3M15 21h2M15 26h3M15 31h2M15 36h3"></path>
           </svg>
           <div class="carriage-reading">
-            <div class="value">${has?`${Math.round(t)}°`:"–"}</div>
-            <div class="label">TEMP</div>
+            <div class="carriage-value">${has?`${Math.round(t)}°`:"–"}</div>
+            <div class="carriage-label">TEMP</div>
           </div>
         </div>
         <div class="carriage-gauge">
@@ -33,8 +33,8 @@ function carriagePlaque(clock){const w=clock.weather;const has=!!w&&isFinite(w.t
             </g>
           </svg>
           <div class="carriage-reading">
-            <div class="value">${has?carriageFmtHours(w.sunHours):"–"}</div>
-            <div class="label">${uv!==null?`SUN · UV ${uv}`:"SUN"}</div>
+            <div class="carriage-value">${has?carriageFmtHours(w.sunHours):"–"}</div>
+            <div class="carriage-label">${uv!==null?`SUN · UV ${uv}`:"SUN"}</div>
           </div>
         </div>
       </div>`}
