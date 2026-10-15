@@ -201,21 +201,35 @@ const CARRIAGE_SUN_ARC = 50.27;
 
 let carriageWeatherState: Array<CarriageWeather|null> = [];
 
+// The subset of an Open-Meteo forecast entry read by the plaques.
+interface OpenMeteoEntry {
+  current?: {
+    temperature_2m?: number,
+    is_day?: number,
+    cloud_cover?: number,
+    uv_index?: number,
+  };
+  daily?: {
+    sunshine_duration?: number[],
+    daylight_duration?: number[],
+  };
+}
+
 function carriageWeatherParse(data: unknown): Array<CarriageWeather|null> {
-  const list: unknown[] = Array.isArray(data) ? data : [data];
-  return list.map((entry: any) => {
+  const list = (Array.isArray(data) ? data : [data]) as OpenMeteoEntry[];
+  return list.map(entry => {
     const current = entry?.current;
-    const daily = entry?.daily;
-    if (!current || typeof current.temperature_2m !== 'number') {
+    const temp = current?.temperature_2m;
+    if (typeof temp !== 'number') {
       return null;
     }
-    const sun = Number(daily?.sunshine_duration?.[0] ?? NaN);
-    const light = Number(daily?.daylight_duration?.[0] ?? NaN);
+    const sun = entry.daily?.sunshine_duration?.[0] ?? NaN;
+    const light = entry.daily?.daylight_duration?.[0] ?? NaN;
     return {
-      temp: current.temperature_2m,
-      isDay: current.is_day === 1,
-      cloud: Number(current.cloud_cover ?? 0),
-      uv: Number(current.uv_index ?? NaN),
+      temp,
+      isDay: current?.is_day === 1,
+      cloud: current?.cloud_cover ?? 0,
+      uv: current?.uv_index ?? NaN,
       sunHours: sun / 3600,
       sunShare: light > 0 ? Math.max(0, Math.min(1, sun / light)) : 0,
     };
