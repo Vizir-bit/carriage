@@ -1,0 +1,30 @@
+name: Dev — dump a pak resource from a release
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag: {required: true, default: v0.19.2.1-orient-express.2}
+      needle: {required: true, default: CARRIAGE_CLOCK_ZONES}
+permissions: {contents: write}
+jobs:
+  dump:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+        run: |
+          set -eux
+          pip3 install --break-system-packages -q brotli || true
+          gh release download "${{ inputs.source_tag }}" --repo "${{ github.repository }}" --pattern '*.dmg' --dir dl
+          mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dl/*.dmg
+          app=$(ls -d "$mnt"/*.app)
+          pak="$(ls -d "$app"/Contents/Frameworks/*.framework)/Versions/Current/Resources/resources.pak"
+          mkdir dump
+          python3 - "$pak" "${{ inputs.needle }}" <<'PY'
+          import sys; sys.path.insert(0,'scripts'); import pak_patch as p
+          enc, order, res, al = p.read(sys.argv[1])
+          for rid in order:
+              k, raw = p.decode(res[rid])
+              if sys.argv[2].encode() in raw: open(f'dump/res_{rid}.txt','wb').write(raw); print(rid, k, len(raw))
+          PY
+          gh release delete dev-dump --repo "${{ github.repository }}" -y --cleanup-tag || true
+          gh release create dev-dump dump/* --repo "${{ github.repository }}" --draft --title "dev dump" --notes "temporary"
