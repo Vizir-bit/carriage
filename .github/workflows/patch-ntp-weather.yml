@@ -6,6 +6,7 @@ on:
       source_tag: {description: Release to patch, required: true, default: v0.19.2.1-orient-express.2}
       tag: {description: New release tag, required: true, default: v0.19.2.1-orient-express.3}
       publish: {description: Publish a release, required: true, default: 'true'}
+      mock: {description: Use sample weather data (layout test), required: false, default: 'false'}
 
 permissions:
   contents: write
@@ -26,6 +27,14 @@ jobs:
           mkdir -p out; ditto "$mnt/Orient-Express.app" out/Orient-Express.app; hdiutil detach "$mnt"
           app=out/Orient-Express.app
           pak="$app/Contents/Frameworks/Carriage Framework.framework/Versions/155.0.8059.39/Resources/resources.pak"
+          if [ "${{ inputs.mock }}" = true ]; then
+            python3 - <<'PY'
+          p='scripts/ntp/weather.js'; s=open(p).read()
+          mock='[{"current":{"temperature_2m":18.6,"is_day":1,"cloud_cover":98,"uv_index":0.75},"daily":{"sunshine_duration":[1751],"daylight_duration":[38597]}},{"current":{"temperature_2m":17.7,"is_day":1,"cloud_cover":50,"uv_index":3.2},"daily":{"sunshine_duration":[35982],"daylight_duration":[39047]}},{"current":{"temperature_2m":23.2,"is_day":1,"cloud_cover":7,"uv_index":4.6},"daily":{"sunshine_duration":[36000],"daylight_duration":[40011]}},{"current":{"temperature_2m":-3.5,"is_day":0,"cloud_cover":100,"uv_index":0},"daily":{"sunshine_duration":[0],"daylight_duration":[37790]}}]'
+          s=s.replace('carriageWeatherRefresh(false);','carriageWeatherState=carriageWeatherParse('+mock+');',1)
+          open(p,'w').write(s)
+          PY
+          fi
           python3 scripts/ntp_weather_patch.py "$pak"
           xattr -cr "$app"
           codesign --force --deep --sign - "$app"
@@ -41,8 +50,12 @@ jobs:
           hdiutil create -volname Orient-Express -srcfolder out -ov -format UDZO "$dmg"
           sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1); echo "$sha  $dmg" > "$dmg.sha256"
           echo "DMG=$dmg" >> $GITHUB_ENV; echo "SHA=$sha" >> $GITHUB_ENV
-      - uses: actions/upload-artifact@v4
-        with: {name: screenshots, path: '*.png', if-no-files-found: warn}
+      - name: Share screenshots (dev)
+        if: inputs.publish != 'true'
+        env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+        run: |
+          gh release delete dev-dump --repo "${{ github.repository }}" -y --cleanup-tag || true
+          gh release create dev-dump *.png --repo "${{ github.repository }}" --prerelease --title "dev dump (temporary)" --notes temporary
       - name: Publish
         if: inputs.publish == 'true'
         env:
