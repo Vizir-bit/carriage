@@ -30,3 +30,4 @@ carriage/ui/carriage-default-colors.patch
 carriage/core/carriage-webstore-direct.patch
 carriage/ui/carriage-ntp-clocks.patch
 carriage/ui/carriage-ntp-weather.patch
+carriage/core/carriage-install-by-id.patch

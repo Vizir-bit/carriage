@@ -1,0 +1,115 @@
+# Install any Chrome Web Store item by ID, not just apps.
+#
+# Stock Chromium already implements install-by-ID behind --install-chrome-app,
+# built on WebstoreInstallWithPrompt, but refuses anything whose manifest has no
+# "app" key. Every stage that install needs already works in this build: the item
+# snippet fetch that supplies the manifest (carriage-webstore-direct.patch points
+# it straight at Google and it answers without an API key), the CRX download, and
+# stock CRX3 signature verification and unpacking, which no patch touches.
+# Only the apps-only gate stands in the way, so this removes it.
+#
+# This also drops the store page the switch opened first. install_chrome_app.cc
+# is listed in ungoogled-chromium's domain_substitution.list, so its hardcoded
+# store URL ships as https://chrome.9oo91e.qjz9zk/webstore/detail/%s and only
+# opens a dead tab. The install prompt already names the extension and its
+# permissions, so nothing is lost.
+
+--- a/chrome/browser/apps/platform_apps/install_chrome_app.cc
++++ b/chrome/browser/apps/platform_apps/install_chrome_app.cc
+@@ -21,58 +21,6 @@
+ 
+ using extensions::ExtensionRegistry;
+ 
+-namespace {
+-
+-// The URL to the webstore page for a specific app.
+-const char kWebstoreUrlFormat[] =
+-    "https://chrome.google.com/webstore/detail/%s";
+-
+-// Error given when the extension is not an app.
+-const char kInstallChromeAppErrorNotAnApp[] =
+-    "--install-chrome-app can only be used to install apps.";
+-
+-// Returns the webstore URL for an app.
+-GURL GetAppInstallUrl(const std::string& app_id) {
+-  return GURL(base::StringPrintf(kWebstoreUrlFormat, app_id.c_str()));
+-}
+-
+-// Checks the manifest and completes the installation with NOT_PERMITTED if the
+-// extension is not an app.
+-class WebstoreInstallWithPromptAppsOnly
+-    : public extensions::WebstoreInstallWithPrompt {
+- public:
+-  WebstoreInstallWithPromptAppsOnly(const std::string& app_id,
+-                                    Profile* profile,
+-                                    gfx::NativeWindow parent_window)
+-      : WebstoreInstallWithPrompt(
+-            app_id,
+-            profile,
+-            parent_window,
+-            extensions::WebstoreStandaloneInstaller::Callback()) {}
+-  WebstoreInstallWithPromptAppsOnly(const WebstoreInstallWithPromptAppsOnly&) =
+-      delete;
+-  WebstoreInstallWithPromptAppsOnly& operator=(
+-      const WebstoreInstallWithPromptAppsOnly&) = delete;
+-
+- private:
+-  ~WebstoreInstallWithPromptAppsOnly() override = default;
+-
+-  // extensions::WebstoreStandaloneInstaller overrides:
+-  void OnManifestParsed() override;
+-};
+-
+-void WebstoreInstallWithPromptAppsOnly::OnManifestParsed() {
+-  if (!manifest().contains(extensions::manifest_keys::kApp)) {
+-    CompleteInstall(extensions::webstore_install::NOT_PERMITTED,
+-                    kInstallChromeAppErrorNotAnApp);
+-    return;
+-  }
+-
+-  ProceedWithInstallPrompt();
+-}
+-
+-}  // namespace
+-
+ namespace install_chrome_app {
+ 
+ void InstallChromeApp(const std::string& app_id,
+@@ -85,27 +33,27 @@ void InstallChromeApp(const std::string&
+   // may need to start a browser or browser session here.
+   DCHECK(browser);
+ 
+-  content::OpenURLParams params =
+-      content::OpenURLParams::CreateBrowserInitiated(
+-          GetAppInstallUrl(app_id), WindowOpenDisposition::NEW_FOREGROUND_TAB,
+-          ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
+-  browser->OpenURL(params, /*navigation_handle_callback=*/{});
+-
+   ExtensionRegistry* registry = ExtensionRegistry::Get(browser->GetProfile());
+   // Skip if this app is already installed or blocklisted. For disabled or
+   // or terminated apps, going through the installation flow should re-enable
+   // them.
+   const extensions::Extension* installed_extension = registry->GetExtensionById(
+       app_id, ExtensionRegistry::ENABLED | ExtensionRegistry::BLOCKLISTED);
+   // TODO(jackhou): For installed apps, maybe we should do something better,
+   // e.g. show the app list (and re-add it to the taskbar).
+   if (installed_extension)
+     return;
+ 
+-  WebstoreInstallWithPromptAppsOnly* installer =
+-      new WebstoreInstallWithPromptAppsOnly(
+-          app_id, browser->GetProfile(),
+-          browser->GetWindow()->GetNativeWindow());
++  // Carriage: install any Web Store item, not only apps.
++  // WebstoreInstallWithPrompt is concrete (it overrides all four of
++  // WebstoreStandaloneInstaller's pure virtuals) and its default
++  // OnManifestParsed() goes straight to the install prompt. BeginInstall()
++  // takes and releases its own reference, so this raw new is not a leak.
++  extensions::WebstoreInstallWithPrompt* installer =
++      new extensions::WebstoreInstallWithPrompt(
++          app_id, browser->GetProfile(),
++          browser->GetWindow()->GetNativeWindow(),
++          extensions::WebstoreStandaloneInstaller::Callback());
+   installer->BeginInstall();
+ }
+ 
