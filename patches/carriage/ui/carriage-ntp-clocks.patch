@@ -51,7 +51,7 @@
 +
 +#carriageClocks {
 +  display: flex;
-+  gap: 64px;
++  gap: clamp(20px, 3.2vw, 64px);
 +  justify-content: space-evenly;
 +  margin-bottom: 52px;
 +  width: min(1320px, 94vw);
@@ -260,11 +260,11 @@
        <cr-most-visited id="mostVisited" .theme="${this.theme_?.mostVisited || null}"
 --- a/chrome/browser/resources/new_tab_page/app.ts
 +++ b/chrome/browser/resources/new_tab_page/app.ts
-@@ -156,6 +156,69 @@
+@@ -156,6 +156,70 @@
    };
  }
  
-+// Carriage: three Pullman-window clocks on the new tab page.
++// Carriage: four Pullman-window clocks on the new tab page.
 +interface CarriageClock {
 +  city: string;
 +  digital: string;
@@ -277,6 +277,7 @@
 +const CARRIAGE_CLOCK_ZONES: Array<[string, string]> = [
 +  ['London', 'Europe/London'],
 +  ['Paris', 'Europe/Paris'],
++  ['Roma', 'Europe/Rome'],
 +  ['Moscow', 'Europe/Moscow'],
 +];
 +
