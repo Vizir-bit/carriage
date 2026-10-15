@@ -1,0 +1,39 @@
+# Turn extension content verification on, as Chrome has it.
+#
+# Content verification checks an extension's files against signed hashes and
+# catches tampering on disk. Chromium only defaults it on for Google-branded
+# builds: unbranded builds get VerifyInfo::Mode::NONE, and the only other way in
+# is a field trial group, which this fork has no variations service to supply.
+# So it is off here, and --extension-content-verification=enforce is currently
+# the only way to get it.
+#
+# Unlike install verification and the Safe Browsing blocklist, this needs nothing
+# from Google at runtime: the signing key is compiled in (GetPublicKey() returns
+# kWebstoreSignaturesPublicKey) and verified_contents.json ships inside the CRX.
+# The optional signature fetch falls back to extension_urls::GetWebstoreUpdateUrl(),
+# which in this fork resolves to the direct Google CRX endpoint that
+# carriage-webstore-direct.patch already points at.
+#
+# ENFORCE_STRICT is the value Google-branded Chrome uses, so this matches Chrome
+# rather than inventing a level. Note the consequence, which is Chrome's too: an
+# extension whose files no longer match its hashes gets disabled.
+
+--- a/chrome/browser/extensions/chrome_content_verifier_delegate.cc
++++ b/chrome/browser/extensions/chrome_content_verifier_delegate.cc
+@@ -103,11 +103,11 @@ ChromeContentVerifierDelegate::GetDefaul
+ #endif  // BUILDFLAG(PLATFORM_CFM)
+ 
+   VerifyInfo::Mode experiment_value;
+-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  experiment_value = VerifyInfo::Mode::ENFORCE_STRICT;
+-#else
+-  experiment_value = VerifyInfo::Mode::NONE;
+-#endif
++  // Carriage: verify extension content in every build, not only Google-branded
++  // ones. Nothing here talks to Google: the signing key is compiled in and the
++  // signed hashes travel inside the CRX. ENFORCE_STRICT is what Google-branded
++  // Chrome uses.
++  experiment_value = VerifyInfo::Mode::ENFORCE_STRICT;
+   const std::string group =
+       base::FieldTrialList::FindFullName(kContentVerificationExperimentName);
+   if (group == "EnforceStrict")
