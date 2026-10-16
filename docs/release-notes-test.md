@@ -1,9 +1,11 @@
-Carriage version 3 — Pullman carriage with weather instruments. Test build for Apple Silicon Macs (macOS 12 or later). The Orient-Express release is this same build under its own name.
+Carriage version 4 — a night train of windows. Test build for Apple Silicon Macs (macOS 12 or later). The Orient-Express release is this same build under its own name.
 
 What's in it
-- New tab page styled as a 1930s Pullman carriage: mahogany panelling, brass bands and nameplate, and four clocks (London, Paris, Roma, Moscow) in arched windows, each window's sky following that city's time of day
-- Under each window, a brass plaque with a thermometer (current temperature) and a sunshine gauge (hours of sun today, share of daylight, UV index)
-- Weather from Open-Meteo (open data, no account or key): one request for the four cities at most every 15 minutes, without cookies or referrer, cached locally; the new tab page may connect to api.open-meteo.com and nothing else outside the browser
+- The clocks are gone. The new tab page is the inside of a Pullman carriage at night: mahogany panelling, brass bands and nameplate, and five arched windows in a row
+- One landscape runs past behind all five windows and carries across the piers between them, so the row reads as a single carriage in motion: hills, woods, a lit cottage, telegraph poles and wires, and the lamp reflected in the glass. The nearer a thing is, the faster it goes by
+- Flimsy slatted shutters hang in the first four windows, each pulled down as far as the last passenger left it, each leaning its own way and rattling with the car. The last window is left clear, and the moon rides outside it
+- Nothing is fetched and nothing is stored: the scene is drawn by the page itself. The weather plaques and their Open-Meteo requests are gone with the clocks, so the new tab page makes no outside connection at all
+- The motion stops for anyone who asks their Mac to reduce motion
 - Built on Helium 0.19.2.1 / Chromium 155.0.8059.39 (ungoogled-chromium), uBlock Origin included
 - Chrome Web Store extensions install and update directly from Google, as in Chrome and Brave
 

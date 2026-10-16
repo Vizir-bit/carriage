@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Carriage: when resuming a build from a checkpoint, bring the new tab page's
 Carriage CSS in the restored source tree up to date with
-patches/carriage/ui/carriage-ntp-clocks.patch (the CSS section is appended at
+patches/carriage/ui/carriage-ntp-night-train.patch (the CSS section is appended at
 the end of app.css, starting at the Carriage marker comment)."""
 import sys
 from pathlib import Path
