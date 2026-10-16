@@ -865,11 +865,6 @@ content::WebUIDataSource* CreateAndAddNewTabPageUiHtmlSource(
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::MediaSrc,
       "media-src blob: data: 'self';");
-  // Carriage: the weather plaques under the Pullman windows read Open-Meteo.
-  source->OverrideContentSecurityPolicy(
-      network::mojom::CSPDirectiveName::ConnectSrc,
-      "connect-src chrome://resources chrome://theme 'self' "
-      "https://api.open-meteo.com;");
 
   return source;
 }

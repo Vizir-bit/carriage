@@ -83,8 +83,7 @@ jobs:
           set -eux
           python3 helium-chromium/utils/generate_resources.py resources/carriage/generate_resources.txt resources/carriage
           python3 helium-chromium/utils/replace_resources.py resources/carriage/carriage_resources.txt resources/carriage build/src
-          python3 .github/scripts/carriage_sync_ntp_css.py patches/carriage/ui/carriage-ntp-clocks.patch build/src/chrome/browser/resources/new_tab_page/app.css
-          # Final new-tab page sources (Chromium 155 + Helium + Carriage clocks and weather patches)
+          # Final new-tab page sources (Chromium 155 + Helium)
           (cd resources/carriage/ntp-tree && find . -type f) | while read -r f; do
             if ! cmp -s "resources/carriage/ntp-tree/$f" "build/src/$f"; then cp "resources/carriage/ntp-tree/$f" "build/src/$f"; echo "Updated build/src/$f"; fi
           done
