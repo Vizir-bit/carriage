@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Put the night window train into a built app's new tab page (pak patch).
+"""Put the night train and the crossing into a built app's new tab page.
 
 Replaces the Pullman clocks in an already-built resources.pak with the night
-train, taking the markup and the CSS straight from the source of truth,
+train, the Le Havre - New York crossing and the switch between them, taking
+the markup and the CSS straight from the source of truth,
 resources/carriage/ntp-tree, so a released build can be refreshed in minutes
 instead of a full Chromium build.
 
@@ -28,6 +29,19 @@ HTML_FROM, HTML_TO = '<div id="carriagePanelling"', '${this.lazyRender_'
 # The clocks ticked once a second; nothing reads them now.
 CLOCK_TIMER = ('this.carriageClockTimer_=window.setInterval((()=>{'
                'this.carriageClocks_=carriageClocksNow()}),1e3);')
+# The built page has neither the scene property nor its click handler, so the
+# markup is pointed at two module-level stand-ins, put in beside the element
+# class; the handler asks the page to render again itself.
+SCENE_BINDINGS = (('${this.carriageScene_}', '${carriageScene}'),
+                  ('${this.onCarriageSceneClick_}', '${carriageSceneClick}'))
+SCENE_ANCHOR = 'const AppElementBase=HelpBubbleMixinLit(CrLitElement);'
+SCENE_JS = (
+    'let carriageScene=(()=>{try{return localStorage.getItem('
+    '"carriage.scene")==="sea"?"sea":"rail"}catch(e){return"rail"}})();'
+    'function carriageSceneClick(e){const t=e.currentTarget;'
+    'carriageScene=t.dataset.scene==="sea"?"sea":"rail";'
+    'try{localStorage.setItem("carriage.scene",carriageScene)}catch(err){}'
+    'const host=t.getRootNode().host;if(host)host.requestUpdate()}')
 
 
 def section(path, start, end=None):
@@ -56,7 +70,10 @@ def splice(s, start, end, new, what):
 def main(pak):
     css = strip_comments(section('app.css', CSS_SOURCE_FROM)).strip()
     html = section('app.html', HTML_FROM, HTML_TO).rstrip() + '\n  '
-    assert '`' not in css + html and '${' not in html, 'breaks the template'
+    for this_binding, module_binding in SCENE_BINDINGS:
+        assert this_binding in html, this_binding
+        html = html.replace(this_binding, module_binding)
+    assert '`' not in css + html and '${this.' not in html, 'breaks the template'
 
     enc, order, res, aliases = p.read(pak)
     done = False
@@ -71,6 +88,8 @@ def main(pak):
         s = splice(s, HTML_FROM, HTML_TO, html, f'resource {rid} markup')
         assert s.count(CLOCK_TIMER) == 1, 'clock timer anchor'
         s = s.replace(CLOCK_TIMER, '')
+        assert s.count(SCENE_ANCHOR) == 1, 'scene code anchor'
+        s = s.replace(SCENE_ANCHOR, SCENE_ANCHOR + SCENE_JS, 1)
         res[rid] = p.encode(kind, s.encode('utf-8'))
         done = True
     assert done, 'no new tab page resource in this pak'

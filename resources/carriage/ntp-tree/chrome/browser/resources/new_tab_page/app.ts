@@ -156,6 +156,19 @@ export interface AppElement {
   };
 }
 
+// Carriage: which scene the new tab page shows, the night train or the
+// Le Havre - New York crossing. Remembered on this Mac only.
+const CARRIAGE_SCENE_KEY = 'carriage.scene';
+
+function carriageSceneStored(): string {
+  try {
+    return window.localStorage.getItem(CARRIAGE_SCENE_KEY) === 'sea' ? 'sea' :
+                                                                        'rail';
+  } catch {
+    return 'rail';
+  }
+}
+
 export class AppElement extends AppElementBase {
   static get is() {
     return 'ntp-app';
@@ -289,6 +302,8 @@ export class AppElement extends AppElementBase {
        * to show up immediately on load.
        */
       lazyRender_: {type: Boolean},
+
+      carriageScene_: {type: String},
 
       scrolledToTop_: {type: Boolean},
 
@@ -426,6 +441,7 @@ export class AppElement extends AppElementBase {
       loadTimeData.getBoolean('multiLineEnabled');
   protected accessor modulesLoaded_: boolean = false;
   protected accessor lazyRender_: boolean = false;
+  protected accessor carriageScene_: string = carriageSceneStored();
   protected accessor scrolledToTop_: boolean =
       document.documentElement.scrollTop <= 0;
   protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
@@ -1012,6 +1028,16 @@ export class AppElement extends AppElementBase {
 
   protected onCloseLensSearch_() {
     this.showLensUploadDialog_ = false;
+  }
+
+  protected onCarriageSceneClick_(e: Event) {
+    const scene = (e.currentTarget as HTMLElement).dataset['scene'];
+    this.carriageScene_ = scene === 'sea' ? 'sea' : 'rail';
+    try {
+      window.localStorage.setItem(CARRIAGE_SCENE_KEY, this.carriageScene_);
+    } catch {
+      // Private profiles may refuse storage; the choice lasts this page.
+    }
   }
 
   protected onCustomizeClick_() {
