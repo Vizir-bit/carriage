@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       source_tag: {required: true, default: v0.19.2.1-orient-express.2}
-      needle: {required: true, default: CARRIAGE_CLOCK_ZONES}
+      needle: {required: true, default: carriagePanelling}
 permissions: {contents: write}
 jobs:
   dump:

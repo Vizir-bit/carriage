@@ -1,0 +1,60 @@
+name: Orient-Express — put the three new-tab scenes in a released build
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag: {description: Release to patch, required: true, default: v0.19.2.1-orient-express.3}
+      tag: {description: New release tag, required: true, default: v0.19.2.1-orient-express.4}
+      publish: {description: Publish a release, required: true, default: 'true'}
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch, sign, test, package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          pip3 install --break-system-packages -q brotli || pip3 install -q brotli
+          gh release download "${{ inputs.source_tag }}" --repo "${{ github.repository }}" --pattern '*.dmg' --dir dl
+          mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dl/*.dmg
+          mkdir -p out; ditto "$mnt/Orient-Express.app" out/Orient-Express.app; hdiutil detach "$mnt"
+          app=out/Orient-Express.app
+          pak="$app/Contents/Frameworks/Carriage Framework.framework/Versions/155.0.8059.39/Resources/resources.pak"
+          python3 scripts/ntp_night_train_patch.py "$pak"
+          xattr -cr "$app"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          # Render the new tab page and photograph it, twice over
+          for size in 1440,900 1024,768; do
+            "$app/Contents/MacOS/Carriage" --headless=new --no-first-run \
+               --user-data-dir="$RUNNER_TEMP/p-${size%,*}" --virtual-time-budget=9000 \
+               --window-size="$size" --screenshot="$PWD/ntp-${size%,*}.png" \
+               chrome://new-tab-page/ || true
+          done
+          ls -la ./*.png
+          ln -s /Applications out/Applications
+          dmg=orient-express_0.19.2.1-4_arm64-macos.dmg
+          hdiutil create -volname Orient-Express -srcfolder out -ov -format UDZO "$dmg"
+          sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1); echo "$sha  $dmg" > "$dmg.sha256"
+          echo "DMG=$dmg" >> $GITHUB_ENV; echo "SHA=$sha" >> $GITHUB_ENV
+      - name: Share screenshots (dev)
+        if: inputs.publish != 'true'
+        env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+        run: |
+          gh release delete dev-dump --repo "${{ github.repository }}" -y --cleanup-tag || true
+          gh release create dev-dump *.png --repo "${{ github.repository }}" --prerelease --title "dev dump (temporary)" --notes temporary
+      - name: Publish
+        if: inputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "Orient-Express, fourth test build: the clocks are gone and the new tab page is a night train of windows. Four arched Pullman windows in a row, with one landscape running past behind them — the same scene carries across the piers, so the row reads as one carriage in motion: hills, woods, a lit cottage, telegraph poles, flimsy shutters half drawn over the first three windows, the moon outside the last, and the lamp reflected in the glass." "" "Two more scenes, chosen with the brass RAIL / SEA / GARDEN switch under the nameplate: the Le Havre – New York crossing at night, seen through four brass portholes — an empty deck, the rail, the sea rolling under the moon; and a Japanese garden at dusk as a four-sheet woodblock print — pine, lantern, vermilion bridge, Fuji, maple." "" "Nothing is fetched and nothing is stored: the scene is drawn by the page itself, and the weather plaques and their Open-Meteo requests are gone with the clocks." "" "Same browser otherwise (Helium 0.19.2.1 / Chromium 155). Not signed by Apple: the first time, right-click Orient-Express in Applications and choose Open." "" "sha256: $SHA" > notes.md
+          gh release create "${{ inputs.tag }}" "$DMG" "$DMG.sha256" --repo "${{ github.repository }}" --prerelease \
+            --title "Orient-Express — a night train of windows (Apple Silicon)" --notes-file notes.md
+          gh release upload "${{ inputs.tag }}" *.png --repo "${{ github.repository }}" || true

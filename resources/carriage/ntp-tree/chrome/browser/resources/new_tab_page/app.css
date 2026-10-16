@@ -564,15 +564,19 @@ ntp-lens-upload-dialog {
   }
 }
 
-/* Carriage: Pullman carriage. Mahogany panelling, brass, and three arched
-   windows whose sky follows each city's time of day. */
+/* Carriage: a night train of windows. You are aboard after dark: mahogany
+   panelling, brass, and four windows in a row. One landscape runs past
+   behind them, carrying across the piers between the windows, so the row
+   reads as a train. */
 #carriagePanelling {
   background:
-      repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.1) 0 2px,
+      radial-gradient(130% 56% at 50% -6%, rgba(255, 186, 104, 0.13),
+                      transparent 68%),
+      repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.22) 0 2px,
                                 transparent 2px 9px),
-      repeating-linear-gradient(88deg, rgba(255, 200, 150, 0.05) 0 1px,
+      repeating-linear-gradient(88deg, rgba(255, 196, 140, 0.035) 0 1px,
                                 transparent 1px 23px),
-      linear-gradient(180deg, #3B1A10, #5A2A17 50%, #3B1A10);
+      linear-gradient(180deg, #170A06, #2C1309 48%, #120704);
   inset: 0;
   pointer-events: none;
   position: fixed;
@@ -580,9 +584,10 @@ ntp-lens-upload-dialog {
 }
 
 .carriage-brass-band {
-  background: linear-gradient(90deg, #6E5220, #E8CE86, #6E5220);
+  background: linear-gradient(90deg, #2A1F0C, #9A7F3C, #2A1F0C);
   height: 3px;
   left: 0;
+  opacity: 0.75;
   position: absolute;
   right: 0;
 }
@@ -596,287 +601,587 @@ ntp-lens-upload-dialog {
 }
 
 #carriagePlate {
-  background: linear-gradient(180deg, #F1D98F, #B8963F);
+  background: linear-gradient(180deg, #D6BE7C, #8E7334);
   border-radius: 3px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 1px 0 #FFF2C0;
-  color: #3B1A10;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6), inset 0 1px 0 #F3E0A8;
+  color: #241007;
   font-family: Copperplate, Futura, 'Avenir Next', sans-serif;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.5em;
-  margin-bottom: 44px;
+  margin-bottom: 14px;
   padding: 9px 26px 8px 34px;
 }
 
-#carriageClocks {
+/* The page styles every svg as position: fixed; these two are ours. */
+#carriageScenery {
+  height: 0;
+  position: absolute;
+  width: 0;
+}
+
+/* The carriage rocks on its springs. */
+#carriageTrain {
+  animation: carriage-sway 5.2s ease-in-out infinite;
   display: flex;
-  gap: clamp(20px, 3.2vw, 64px);
-  justify-content: space-evenly;
+  gap: 46px;
   margin-bottom: 52px;
-  width: min(1320px, 94vw);
+}
+
+@keyframes carriage-sway {
+  0%, 100% { transform: translateY(-0.8px) rotate(-0.05deg); }
+  50% { transform: translateY(0.8px) rotate(0.05deg); }
 }
 
 .carriage-window {
-  background: linear-gradient(160deg, #F1D98F, #8C6A2C);
-  border-radius: 95px 95px 22px 22px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(160deg, #C4A75F, #5A4320);
+  border-radius: 92px 92px 20px 20px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6),
+              inset 0 1px 0 rgba(255, 238, 190, 0.45);
   box-sizing: border-box;
-  height: 250px;
-  padding: 9px;
-  width: 190px;
+  height: 252px;
+  padding: 8px;
+  width: 184px;
 }
 
 .carriage-glass {
-  align-items: center;
-  border-radius: 86px 86px 16px 16px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
+  border-radius: 86px 86px 13px 13px;
+  box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.8);
   height: 100%;
   overflow: hidden;
-  padding-top: 22px;
   position: relative;
   width: 100%;
 }
 
-.carriage-glass.sky-night {
-  background: linear-gradient(180deg, #070C24, #18224F);
-}
-
-.carriage-glass.sky-dawn {
-  background: linear-gradient(180deg, #2B2357, #C9786A);
-}
-
-.carriage-glass.sky-day {
-  background: linear-gradient(180deg, #3E6FB3, #A9C7E8);
-}
-
-.carriage-glass.sky-dusk {
-  background: linear-gradient(180deg, #3A2E66, #E39A62);
-}
-
-.carriage-glass.sky-evening {
-  background: linear-gradient(180deg, #141A45, #4B3A7A);
-}
-
-.carriage-stars {
+.carriage-scene {
+  display: block;
   height: 100%;
-  inset: 0;
-  position: absolute;
+  position: static;
   width: 100%;
 }
 
-.carriage-stars path {
-  fill: none;
-  stroke: #FFF8E6;
-  stroke-linecap: round;
+.scene-sky {
+  fill: url(#carriageNight);
 }
 
-.carriage-stars .small {
-  opacity: 0.6;
+.scene-stars {
+  fill: url(#carriageStars);
+}
+
+.star-small {
+  stroke: #FFF6DE;
+  stroke-linecap: round;
+  stroke-opacity: 0.55;
   stroke-width: 1.1;
 }
 
-.carriage-stars .large {
-  opacity: 0.9;
-  stroke-width: 2;
+.star-large {
+  stroke: #FFF8E8;
+  stroke-linecap: round;
+  stroke-opacity: 0.85;
+  stroke-width: 1.9;
 }
 
-.sky-day .carriage-stars {
+.moon {
+  fill: #FBF2D4;
+}
+
+.moon-glow {
+  fill: url(#carriageMoonGlow);
+}
+
+.hills {
+  fill: #0E1730;
+}
+
+.woods {
+  fill: #070C18;
+}
+
+.cottage-light {
+  fill: #FFC773;
+  fill-opacity: 0.85;
+}
+
+.pole {
+  fill: #05080F;
+}
+
+.wire {
+  fill: none;
+  stroke: #05080F;
+  stroke-width: 1.1;
+}
+
+.hedge {
+  fill: #02040A;
+}
+
+/* Depth: the further away, the slower it goes by. */
+.scene-hills {
+  animation: carriage-roll-hills 190s linear infinite;
+  fill: url(#carriageHills);
+}
+
+.scene-woods {
+  animation: carriage-roll-woods 48s linear infinite;
+  fill: url(#carriageWoods);
+}
+
+.scene-poles {
+  animation: carriage-roll-poles 16s linear infinite;
+  fill: url(#carriagePoles);
+}
+
+.scene-hedge {
+  animation: carriage-roll-hedge 5.5s linear infinite;
+  fill: url(#carriageHedge);
+}
+
+@keyframes carriage-roll-hills {
+  to { transform: translateX(-900px); }
+}
+
+@keyframes carriage-roll-woods {
+  to { transform: translateX(-620px); }
+}
+
+@keyframes carriage-roll-poles {
+  to { transform: translateX(-340px); }
+}
+
+@keyframes carriage-roll-hedge {
+  to { transform: translateX(-170px); }
+}
+
+/* Flimsy shutters: thin slats with the night showing between them, pulled
+   down as far as whoever sat here last cared to, and rattling with the car. */
+.carriage-shutter {
+  animation: carriage-rattle 0.9s ease-in-out infinite;
+  animation-delay: var(--rattle);
+  height: var(--drop);
+  left: -8%;
+  position: absolute;
+  top: -2px;
+  transform: rotate(var(--tilt));
+  transform-origin: 50% 0;
+  width: 116%;
+}
+
+.carriage-slats {
+  background:
+      repeating-linear-gradient(180deg,
+                                rgba(78, 51, 28, 0.86) 0 3.4px,
+                                rgba(132, 95, 51, 0.8) 3.4px 4.2px,
+                                rgba(10, 7, 4, 0.22) 4.2px 5.6px);
+  box-shadow: 0 4px 9px rgba(0, 0, 0, 0.45);
+  height: 100%;
+  opacity: 0.94;
+}
+
+.carriage-rail {
+  background: linear-gradient(180deg, #8C7239, #43351A);
+  bottom: -3px;
+  height: 4px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.carriage-cord {
+  background: rgba(232, 209, 154, 0.45);
+  height: 9px;
+  left: 52%;
+  position: absolute;
+  top: 4px;
+  width: 1px;
+}
+
+.carriage-cord::after {
+  border: 1px solid rgba(232, 209, 154, 0.5);
+  border-radius: 50%;
+  content: '';
+  height: 3px;
+  left: -2px;
+  position: absolute;
+  top: 8px;
+  width: 3px;
+}
+
+@keyframes carriage-rattle {
+  0%, 100% { transform: rotate(var(--tilt)) translateY(-0.35px); }
+  50% { transform: rotate(calc(var(--tilt) + 0.12deg)) translateY(0.4px); }
+}
+
+/* Lamplight on the inside of the glass. */
+.carriage-reflection {
+  background:
+      radial-gradient(64px 40px at 27% 16%, rgba(255, 201, 126, 0.16),
+                      transparent 74%),
+      linear-gradient(116deg, transparent 0 39%,
+                      rgba(255, 234, 196, 0.045) 44% 51%, transparent 57%),
+      linear-gradient(0deg, rgba(255, 186, 116, 0.08), transparent 30%);
+  border-radius: inherit;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Narrow windows: the whole train shrinks rather than losing a carriage. */
+@media (max-width: 1180px) {
+  #carriageTrain { zoom: 0.84; }
+}
+
+@media (max-width: 1000px) {
+  #carriageTrain { zoom: 0.7; }
+}
+
+@media (max-width: 840px) {
+  #carriageTrain { zoom: 0.56; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #carriageTrain,
+  .carriage-shutter,
+  .scene-hills,
+  .scene-woods,
+  .scene-poles,
+  .scene-hedge {
+    animation: none;
+  }
+}
+
+/* Two scenes, one wall: the night train and the Le Havre - New York
+   crossing, chosen with the brass switch under the nameplate. */
+#carriageHall {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.rail-scene,
+.sea-scene,
+.garden-scene,
+.plate-rail,
+.plate-sea,
+.plate-garden,
+.scene-sea .carriage-shutter,
+.scene-garden .carriage-shutter,
+.scene-garden .carriage-reflection {
   display: none;
 }
 
-.sky-dawn .carriage-stars,
-.sky-dusk .carriage-stars {
-  opacity: 0.45;
+.scene-rail .rail-scene,
+.scene-sea .sea-scene,
+.scene-garden .garden-scene {
+  display: block;
 }
 
-.carriage-dial {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
-  height: 128px;
+.scene-rail .plate-rail,
+.scene-sea .plate-sea,
+.scene-garden .plate-garden {
+  display: inline;
+}
+
+#carriageSwitch {
+  background: linear-gradient(180deg, #6B5526, #3A2C12);
+  border-radius: 2px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 232, 170, 0.3);
+  display: flex;
+  gap: 2px;
+  margin-bottom: 40px;
+  padding: 3px;
+}
+
+.carriage-way {
+  background: none;
+  border: 0;
+  border-radius: 1px;
+  color: rgba(236, 214, 160, 0.45);
+  cursor: pointer;
+  font-family: Copperplate, Futura, 'Avenir Next', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  padding: 5px 12px 4px 16px;
+}
+
+.carriage-way:hover {
+  color: rgba(246, 230, 186, 0.8);
+}
+
+.carriage-way:focus-visible {
+  outline: 1px solid #F0DCA0;
+  outline-offset: 1px;
+}
+
+.scene-rail .carriage-way.rail,
+.scene-sea .carriage-way.sea,
+.scene-garden .carriage-way.garden {
+  background: linear-gradient(180deg, #EBD597, #B08E3C);
+  color: #241007;
+  text-shadow: 0 1px 0 rgba(255, 244, 210, 0.55);
+}
+
+/* The crossing. Portholes in place of carriage windows; beyond them the
+   deck, empty, and the sea. The ship carries the deck and the portholes
+   along with you, so only the sea moves: the swell runs aft and rolls
+   about one point shared by every porthole, so the horizon stays one
+   line across them all. */
+.scene-sea #carriageTrain {
+  animation: none;
+}
+
+.scene-sea .carriage-window {
+  background: radial-gradient(circle at 35% 30%, #EAD08A, #9C7A34 55%,
+                              #4E3A16);
+  border-radius: 50%;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.6),
+              inset 0 -3px 6px rgba(0, 0, 0, 0.35);
+  height: 184px;
+  margin: 34px 0;
   position: relative;
-  width: 128px;
 }
 
-.carriage-dial .arc {
+.scene-sea .carriage-glass {
+  border-radius: 50%;
+}
+
+.scene-sea .carriage-window::after {
+  background:
+      radial-gradient(circle at 50% 2.2%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px),
+      radial-gradient(circle at 83.8% 16.2%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px),
+      radial-gradient(circle at 97.8% 50%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px),
+      radial-gradient(circle at 83.8% 83.8%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px),
+      radial-gradient(circle at 50% 97.8%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px),
+      radial-gradient(circle at 16.2% 83.8%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px),
+      radial-gradient(circle at 2.2% 50%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px),
+      radial-gradient(circle at 16.2% 16.2%, #F6E3A8 0 1.4px, #6B5020 2.2px,
+                      transparent 2.7px);
+  border-radius: 50%;
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.sea-sky {
+  fill: url(#carriageSeaNight);
+}
+
+.swell-far-fill {
+  fill: #0B1530;
+}
+
+.swell-mid-fill {
+  fill: #08112A;
+}
+
+.swell-near-fill {
+  fill: #050C20;
+}
+
+.swell-fore-fill {
+  fill: #030817;
+}
+
+.swell-crest {
   fill: none;
-  stroke: #C9B27A;
-  stroke-width: 0.4;
+  stroke: #4A5E92;
+  stroke-opacity: 0.5;
+  stroke-width: 0.6;
 }
 
-.carriage-dial .ticks-minor,
-.carriage-dial .ticks-major {
+.swell-crest.near {
+  stroke-opacity: 0.6;
+  stroke-width: 0.8;
+}
+
+.moon-path ellipse {
+  fill: #FFF1C8;
+}
+
+.moon-path {
+  animation: carriage-glint 3.8s ease-in-out infinite alternate;
+}
+
+.deck {
+  fill: url(#carriageDeck);
+}
+
+.deck-iron {
+  fill: #17110A;
+}
+
+.deck-floor {
+  fill: #1F160D;
+}
+
+.deck-glint {
+  fill: #A07C40;
+  fill-opacity: 0.75;
+}
+
+.lifebuoy {
   fill: none;
+  stroke: #D8D0BE;
+  stroke-width: 4.2;
 }
 
-.carriage-dial .ticks-minor {
-  stroke: #3B2A1A;
-  stroke-width: 0.45;
+.lifebuoy-bands {
+  fill: none;
+  stroke: #5A1F18;
+  stroke-dasharray: 7 8.7;
+  stroke-opacity: 0.85;
+  stroke-width: 4.2;
 }
 
-.carriage-dial .ticks-major {
-  stroke: #2A1A10;
-  stroke-width: 1.5;
+.sea-roll {
+  animation: carriage-roll-sea 11s ease-in-out infinite alternate;
+  transform-box: view-box;
+  transform-origin: 429px 170px;
 }
 
-.carriage-dial .numerals text {
-  fill: #2A1A10;
-  font-family: Didot, 'Bodoni 72', Georgia, serif;
+.sea-bob {
+  animation: carriage-bob 7.5s ease-in-out infinite;
+}
+
+.swell-far {
+  animation: carriage-roll-far 140s linear infinite;
+  fill: url(#carriageSwellFar);
+}
+
+.swell-mid {
+  animation: carriage-roll-mid 70s linear infinite;
+  fill: url(#carriageSwellMid);
+}
+
+.swell-near {
+  animation: carriage-roll-near 32s linear infinite;
+  fill: url(#carriageSwellNear);
+}
+
+.swell-fore {
+  animation: carriage-roll-fore 16s linear infinite;
+  fill: url(#carriageSwellFore);
+}
+
+@keyframes carriage-roll-sea {
+  from { transform: rotate(-0.55deg); }
+  to { transform: rotate(0.55deg); }
+}
+
+@keyframes carriage-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1.6px); }
+}
+
+@keyframes carriage-glint {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
+@keyframes carriage-roll-far {
+  to { transform: translateX(-420px); }
+}
+
+@keyframes carriage-roll-mid {
+  to { transform: translateX(-300px); }
+}
+
+@keyframes carriage-roll-near {
+  to { transform: translateX(-190px); }
+}
+
+@keyframes carriage-roll-fore {
+  to { transform: translateX(-130px); }
+}
+
+/* The garden: a print in four sheets, hung on the same wall, one garden
+   running across them in the woodblock manner -- flat colour, a key-block
+   contour round everything, a Prussian-blue sky shading down to the glow
+   of dusk. A print holds still; only a few maple leaves come down. */
+.scene-garden #carriageTrain {
+  animation: none;
+}
+
+.scene-garden .carriage-window {
+  background: #EDE3CB;
+  border-radius: 1px;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.6);
+}
+
+.scene-garden .carriage-glass {
+  border-radius: 0;
+  box-shadow: inset 0 0 0 1px rgba(28, 24, 20, 0.7);
+}
+
+.scene-garden .carriage-glass::after {
+  background:
+      repeating-linear-gradient(90deg, rgba(120, 100, 70, 0.035) 0 1px,
+                                transparent 1px 3px),
+      repeating-linear-gradient(0deg, rgba(255, 250, 235, 0.04) 0 1px,
+                                transparent 1px 4px);
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.garden-title {
+  fill: #1C1814;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
   font-size: 9.5px;
+  writing-mode: vertical-rl;
+}
+
+.garden-seal {
+  fill: #F1E2B0;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  font-size: 8.4px;
   text-anchor: middle;
 }
 
-.carriage-dial .hand {
-  fill: #2A1A10;
+.garden-leaf {
+  animation: carriage-leaf 16s linear infinite;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-.carriage-dial .seconds line {
-  stroke: #9E2B25;
-  stroke-width: 0.55;
+.garden-leaf.leaf-1 {
+  animation-delay: -6s;
+  animation-duration: 21s;
 }
 
-.carriage-dial .seconds circle {
-  fill: #9E2B25;
+.garden-leaf.leaf-2 {
+  animation-delay: -11s;
+  animation-duration: 13s;
 }
 
-.carriage-city,
-.carriage-time {
-  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
-  position: relative;
-  text-shadow: 0 1px 3px rgba(20, 8, 4, 0.75);
+@keyframes carriage-leaf {
+  0% { opacity: 0; translate: 0 0; rotate: 0deg; }
+  10%, 85% { opacity: 1; }
+  100% { opacity: 0; translate: -22px 70px; rotate: 220deg; }
 }
 
-.carriage-car {
-  align-items: center;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.carriage-plaque {
-  align-items: center;
-  background: linear-gradient(170deg, #F3DD9A, #B8963F 55%, #8C6A2C);
-  border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 #FFF2C0;
-  box-sizing: border-box;
-  display: flex;
-  gap: 6px;
-  height: 62px;
-  justify-content: space-around;
-  padding: 6px 10px;
-  width: 190px;
-}
-
-.carriage-gauge {
-  align-items: center;
-  display: flex;
-  flex-direction: row;
-  gap: 5px;
-  position: static;
-}
-
-.carriage-thermo {
-  flex: 0 0 18px;
-  height: 46px;
-  position: relative;
-  width: 18px;
-}
-
-.carriage-thermo .tube {
-  fill: #FFF9EC;
-  stroke: #5A3E18;
-  stroke-width: 1;
-}
-
-.carriage-thermo .bulb-ring {
-  fill: #FFF9EC;
-  stroke: #5A3E18;
-  stroke-width: 1;
-}
-
-.carriage-thermo .mercury {
-  fill: #A3271F;
-}
-
-.carriage-thermo .ticks {
-  fill: none;
-  stroke: #3B2A1A;
-  stroke-width: 0.8;
-}
-
-.carriage-sun {
-  flex: 0 0 40px;
-  height: 28px;
-  position: relative;
-  width: 40px;
-}
-
-.carriage-sun .track {
-  fill: none;
-  stroke: rgba(59, 26, 16, 0.35);
-  stroke-linecap: round;
-  stroke-width: 4;
-}
-
-.carriage-sun .fill {
-  fill: none;
-  stroke: #E8A317;
-  stroke-linecap: round;
-  stroke-width: 4;
-}
-
-.carriage-sun .disc circle {
-  fill: #F6C343;
-  stroke: #8C5A10;
-  stroke-width: 0.8;
-}
-
-.carriage-sun .disc path {
-  fill: none;
-  stroke: #8C5A10;
-  stroke-linecap: round;
-  stroke-width: 1.2;
-}
-
-.carriage-reading {
-  align-items: flex-start;
-  color: #3B1A10;
-  display: flex;
-  flex-direction: column;
-  position: static;
-  text-align: left;
-  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
-  line-height: 1.1;
-}
-
-.carriage-value {
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.carriage-label {
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  opacity: 0.8;
-  white-space: nowrap;
-}
-
-.carriage-city {
-  color: #F6E7BC;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.36em;
-  margin-top: 14px;
-  text-transform: uppercase;
-}
-
-.carriage-time {
-  color: #FFF1CC;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.2em;
-  margin-top: 5px;
+@media (prefers-reduced-motion: reduce) {
+  .sea-roll,
+  .sea-bob,
+  .moon-path,
+  .swell-far,
+  .swell-mid,
+  .swell-near,
+  .swell-fore,
+  .garden-leaf {
+    animation: none;
+  }
 }
