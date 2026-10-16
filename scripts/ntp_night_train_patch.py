@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Put the night train and the crossing into a built app's new tab page.
+"""Put the Carriage scenes into a built app's new tab page (pak patch).
 
-Replaces the Pullman clocks in an already-built resources.pak with the night
-train, the Le Havre - New York crossing and the switch between them, taking
+Replaces the Pullman clocks in an already-built resources.pak with the three
+scenes -- the night train, the Le Havre - New York crossing, the garden print
+-- and the switch between them, taking
 the markup and the CSS straight from the source of truth,
 resources/carriage/ntp-tree, so a released build can be refreshed in minutes
 instead of a full Chromium build.
@@ -36,10 +37,13 @@ SCENE_BINDINGS = (('${this.carriageScene_}', '${carriageScene}'),
                   ('${this.onCarriageSceneClick_}', '${carriageSceneClick}'))
 SCENE_ANCHOR = 'const AppElementBase=HelpBubbleMixinLit(CrLitElement);'
 SCENE_JS = (
-    'let carriageScene=(()=>{try{return localStorage.getItem('
-    '"carriage.scene")==="sea"?"sea":"rail"}catch(e){return"rail"}})();'
+    'const CARRIAGE_SCENES=["rail","sea","garden"];'
+    'let carriageScene=(()=>{try{const s=localStorage.getItem('
+    '"carriage.scene");return CARRIAGE_SCENES.includes(s)?s:"rail"}'
+    'catch(e){return"rail"}})();'
     'function carriageSceneClick(e){const t=e.currentTarget;'
-    'carriageScene=t.dataset.scene==="sea"?"sea":"rail";'
+    'carriageScene=CARRIAGE_SCENES.includes(t.dataset.scene)?'
+    't.dataset.scene:"rail";'
     'try{localStorage.setItem("carriage.scene",carriageScene)}catch(err){}'
     'const host=t.getRootNode().host;if(host)host.requestUpdate()}')
 

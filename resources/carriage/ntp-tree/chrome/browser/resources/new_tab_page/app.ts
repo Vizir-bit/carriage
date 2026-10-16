@@ -156,14 +156,16 @@ export interface AppElement {
   };
 }
 
-// Carriage: which scene the new tab page shows, the night train or the
-// Le Havre - New York crossing. Remembered on this Mac only.
+// Carriage: which scene the new tab page shows -- the night train, the
+// Le Havre - New York crossing, or a print of a Japanese garden.
+// Remembered on this Mac only.
 const CARRIAGE_SCENE_KEY = 'carriage.scene';
+const CARRIAGE_SCENES = ['rail', 'sea', 'garden'];
 
 function carriageSceneStored(): string {
   try {
-    return window.localStorage.getItem(CARRIAGE_SCENE_KEY) === 'sea' ? 'sea' :
-                                                                        'rail';
+    const stored = window.localStorage.getItem(CARRIAGE_SCENE_KEY);
+    return stored && CARRIAGE_SCENES.includes(stored) ? stored : 'rail';
   } catch {
     return 'rail';
   }
@@ -1031,8 +1033,8 @@ export class AppElement extends AppElementBase {
   }
 
   protected onCarriageSceneClick_(e: Event) {
-    const scene = (e.currentTarget as HTMLElement).dataset['scene'];
-    this.carriageScene_ = scene === 'sea' ? 'sea' : 'rail';
+    const scene = (e.currentTarget as HTMLElement).dataset['scene'] ?? '';
+    this.carriageScene_ = CARRIAGE_SCENES.includes(scene) ? scene : 'rail';
     try {
       window.localStorage.setItem(CARRIAGE_SCENE_KEY, this.carriageScene_);
     } catch {

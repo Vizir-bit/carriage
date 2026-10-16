@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -563,3 +563,539 @@
+@@ -563,3 +563,625 @@
      -webkit-mask-image: url(icons/link.svg);
    }
  }
@@ -300,12 +300,28 @@
 +  flex-direction: column;
 +}
 +
-+.scene-rail .sea-scene,
-+.scene-rail .plate-sea,
-+.scene-sea .rail-scene,
-+.scene-sea .plate-rail,
-+.scene-sea .carriage-shutter {
++.rail-scene,
++.sea-scene,
++.garden-scene,
++.plate-rail,
++.plate-sea,
++.plate-garden,
++.scene-sea .carriage-shutter,
++.scene-garden .carriage-shutter,
++.scene-garden .carriage-reflection {
 +  display: none;
++}
++
++.scene-rail .rail-scene,
++.scene-sea .sea-scene,
++.scene-garden .garden-scene {
++  display: block;
++}
++
++.scene-rail .plate-rail,
++.scene-sea .plate-sea,
++.scene-garden .plate-garden {
++  display: inline;
 +}
 +
 +#carriageSwitch {
@@ -342,7 +358,8 @@
 +}
 +
 +.scene-rail .carriage-way.rail,
-+.scene-sea .carriage-way.sea {
++.scene-sea .carriage-way.sea,
++.scene-garden .carriage-way.garden {
 +  background: linear-gradient(180deg, #EBD597, #B08E3C);
 +  color: #241007;
 +  text-shadow: 0 1px 0 rgba(255, 244, 210, 0.55);
@@ -529,6 +546,74 @@
 +  to { transform: translateX(-130px); }
 +}
 +
++/* The garden: a print in four sheets, hung on the same wall, one garden
++   running across them in the woodblock manner -- flat colour, a key-block
++   contour round everything, a Prussian-blue sky shading down to the glow
++   of dusk. A print holds still; only a few maple leaves come down. */
++.scene-garden #carriageTrain {
++  animation: none;
++}
++
++.scene-garden .carriage-window {
++  background: #EDE3CB;
++  border-radius: 1px;
++  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.6);
++}
++
++.scene-garden .carriage-glass {
++  border-radius: 0;
++  box-shadow: inset 0 0 0 1px rgba(28, 24, 20, 0.7);
++}
++
++.scene-garden .carriage-glass::after {
++  background:
++      repeating-linear-gradient(90deg, rgba(120, 100, 70, 0.035) 0 1px,
++                                transparent 1px 3px),
++      repeating-linear-gradient(0deg, rgba(255, 250, 235, 0.04) 0 1px,
++                                transparent 1px 4px);
++  content: '';
++  inset: 0;
++  pointer-events: none;
++  position: absolute;
++}
++
++.garden-title {
++  fill: #1C1814;
++  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
++  font-size: 9.5px;
++  writing-mode: vertical-rl;
++}
++
++.garden-seal {
++  fill: #F1E2B0;
++  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
++  font-size: 8.4px;
++  text-anchor: middle;
++}
++
++.garden-leaf {
++  animation: carriage-leaf 16s linear infinite;
++  opacity: 0;
++  transform-box: fill-box;
++  transform-origin: center;
++}
++
++.garden-leaf.leaf-1 {
++  animation-delay: -6s;
++  animation-duration: 21s;
++}
++
++.garden-leaf.leaf-2 {
++  animation-delay: -11s;
++  animation-duration: 13s;
++}
++
++@keyframes carriage-leaf {
++  0% { opacity: 0; translate: 0 0; rotate: 0deg; }
++  10%, 85% { opacity: 1; }
++  100% { opacity: 0; translate: -22px 70px; rotate: 220deg; }
++}
++
 +@media (prefers-reduced-motion: reduce) {
 +  .sea-roll,
 +  .sea-bob,
@@ -536,13 +621,14 @@
 +  .swell-far,
 +  .swell-mid,
 +  .swell-near,
-+  .swell-fore {
++  .swell-fore,
++  .garden-leaf {
 +    animation: none;
 +  }
 +}
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -1,4 +1,259 @@
+@@ -1,4 +1,392 @@
  <div id="content">
 +  <div id="carriagePanelling" aria-hidden="true">
 +    <div class="carriage-brass-band top"></div>
@@ -552,12 +638,15 @@
 +    <div id="carriagePlate" aria-hidden="true">
 +      <span class="plate-rail">CARRIAGE</span>
 +      <span class="plate-sea">LE HAVRE &ndash; NEW YORK</span>
++      <span class="plate-garden">JAPANESE GARDEN</span>
 +    </div>
 +    <div id="carriageSwitch">
 +      <button class="carriage-way rail" data-scene="rail"
 +          @click="${this.onCarriageSceneClick_}">RAIL</button>
 +      <button class="carriage-way sea" data-scene="sea"
 +          @click="${this.onCarriageSceneClick_}">SEA</button>
++      <button class="carriage-way garden" data-scene="garden"
++          @click="${this.onCarriageSceneClick_}">GARDEN</button>
 +    </div>
 +    <svg id="carriageScenery" aria-hidden="true">
 +      <defs>
@@ -631,6 +720,116 @@
 +          <path class="deck-iron" d="M0 194h115v2.6H0ZM0 207h115v1.6H0ZM0 219h115v1.4H0ZM56 194h3v35h-3Z"></path>
 +          <path class="deck-glint" d="M0 194h115v.6H0ZM0 229h115v.6H0Z"></path>
 +        </pattern>
++        <linearGradient id="carriageDusk" x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0" stop-color="#22396A"></stop>
++          <stop offset=".14" stop-color="#46699C"></stop>
++          <stop offset=".30" stop-color="#E9DFC2"></stop>
++          <stop offset=".46" stop-color="#F1D2A6"></stop>
++          <stop offset=".56" stop-color="#EDA477"></stop>
++          <stop offset=".63" stop-color="#E2865A"></stop>
++        </linearGradient>
++        <linearGradient id="carriagePond" x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0" stop-color="#C2A79A"></stop>
++          <stop offset=".2" stop-color="#7AA3C9"></stop>
++          <stop offset="1" stop-color="#24477E"></stop>
++        </linearGradient>
++        <linearGradient id="carriageFuji" x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0" stop-color="#4F6C9E"></stop>
++          <stop offset="1" stop-color="#A3B7CF"></stop>
++        </linearGradient>
++        <linearGradient id="carriageMoss" x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0" stop-color="#7C9A4C"></stop>
++          <stop offset="1" stop-color="#4C6A31"></stop>
++        </linearGradient>
++        <radialGradient id="carriageLanternGlow" cx=".5" cy=".5" r=".5">
++          <stop offset="0" stop-color="#FFD98A" stop-opacity=".55"></stop>
++          <stop offset="1" stop-color="#FFD98A" stop-opacity="0"></stop>
++        </radialGradient>
++        <pattern id="carriageCurb" width="13" height="236"
++            patternUnits="userSpaceOnUse">
++          <ellipse cx="6.5" cy="205" rx="5.6" ry="2.6" fill="#8E8C85"
++              stroke="#1C1814" stroke-width=".6"></ellipse>
++        </pattern>
++        <g id="carriageGarden">
++          <rect width="920" height="236" fill="url(#carriageDusk)"></rect>
++          <path d="M676 126Q712 96 736 76Q742 72 748 76Q774 98 812 126Z"
++              fill="url(#carriageFuji)" stroke="#1C1814" stroke-width=".7"></path>
++          <path d="M724 87Q732 80 736 76Q742 72 748 76Q752 80 761 88L755 86L751 91L746 85L741 92L736 86L731 91L727 86Z"
++              fill="#F7F2E6" stroke="#1C1814" stroke-width=".6"></path>
++          <path d="M0 128C80 116 140 122 220 118S360 112 430 121S560 126 640 117S780 112 858 124V150H0Z"
++              fill="#8EA4BD"></path>
++          <path d="M0 138C60 132 150 136 230 131S400 136 470 133S610 128 700 134S820 138 858 135V150H0Z"
++              fill="#6D88A8"></path>
++          <path d="M120 150V141q5.4 -8.9 10.8 0q6.4 -8.1 12.7 0q7.5 -7.2 15 0q6.6 -7.3 13.2 0q7.3 -7.2 14.6 0q6.3 -8.8 12.6 0q8 -5.1 16 0q5.6 -9.6 11.1 0q5.7 -8.3 11.4 0q5.4 -8.1 10.8 0q7 -6.5 14 0q6.8 -8.3 13.6 0q5.1 -5.4 10.1 0q5.7 -8.4 11.4 0q7.6 -9.7 15.2 0q7.6 -6.5 15.2 0q4.8 -9.6 9.6 0q6.5 -6.4 13 0q6 -5.2 12 0q6.9 -9.3 13.7 0q5.8 -7.1 11.6 0q4.7 -6.5 9.3 0q5.4 -9.7 10.9 0q5.6 -7.2 11.2 0q4.5 -9.9 9 0q6.1 -8.6 12.2 0q5.6 -6 11.2 0q5.8 -9.9 11.6 0q7.2 -9.3 14.4 0q7.4 -7.6 14.8 0q4.9 -7.8 9.8 0q5.6 -7.5 11.3 0q4.7 -6.1 9.3 0q7.3 -6 14.7 0q5.8 -6.5 11.6 0q5.8 -5.9 11.6 0q6.9 -8.9 13.8 0q5.4 -6.8 10.8 0q7.8 -8.5 15.6 0q7.9 -7.9 15.9 0q5.7 -9.8 11.5 0q5.1 -8.9 10.3 0q4.5 -5.3 9 0q6.6 -7.1 13.2 0q6.3 -5.7 12.5 0q6.5 -5.5 13 0q7.3 -6.9 14.5 0q7.4 -9.8 14.7 0q7.7 -7.1 15.4 0q6.5 -9.7 13 0q7.3 -7.3 14.7 0q6.1 -8.3 12.1 0q7.6 -5.5 15.1 0q5 -5.4 9.9 0q6.9 -5.4 13.8 0q4.6 -6.2 9.3 0q4.6 -6.9 9.2 0q7.4 -9.8 14.8 0q4.7 -9.8 9.4 0q5.2 -7.5 10.4 0V150Z" fill="#36543A" stroke="#1C1814"
++              stroke-width=".7"></path>
++          <path d="M519 50q1.5 -2.4 3 0q1.5 -2.4 3 0M507 56q1.5 -2.4 3 0q1.5 -2.4 3 0M495 62q1.5 -2.4 3 0q1.5 -2.4 3 0M531 56q1.5 -2.4 3 0q1.5 -2.4 3 0M543 62q1.5 -2.4 3 0q1.5 -2.4 3 0" fill="none" stroke="#1C1814" stroke-width=".9"
++              stroke-linecap="round"></path>
++          <rect y="146" width="920" height="60" fill="url(#carriagePond)"></rect>
++          <path d="M761.2 190.7q3.2 -1.6 6.5 0M273.4 187.9q3.3 -1.6 6.6 0M236.9 181.2q4.7 -1.6 9.4 0M796.4 181.3q4.3 -1.6 8.6 0M673.8 184.6q3.3 -1.6 6.6 0M243.6 181.5q5.1 -1.6 10.2 0M563.6 174q3 -1.6 6 0M750.4 181.8q5.1 -1.6 10.2 0M533.6 194.4q4.2 -1.6 8.4 0M205 192.3q3.8 -1.6 7.7 0M120.3 178.2q5.2 -1.6 10.5 0M417.5 188.9q4.9 -1.6 9.9 0M243 179.8q3.6 -1.6 7.2 0M678.7 184q2.8 -1.6 5.6 0M297.3 183.4q5.4 -1.6 10.9 0M282.3 189.4q5.3 -1.6 10.6 0M391.8 182q3.6 -1.6 7.2 0M584.7 190.8q4.8 -1.6 9.7 0M358.5 187q3.1 -1.6 6.1 0M489.7 194.8q2.6 -1.6 5.1 0M154.4 195q4.3 -1.6 8.6 0M714.4 185.2q4.5 -1.6 9.1 0M787.4 172.7q3.7 -1.6 7.4 0M260.2 185q5.1 -1.6 10.2 0M642.2 184.7q3.2 -1.6 6.3 0M215.9 179.4q3.7 -1.6 7.3 0M724.5 173.4q2.8 -1.6 5.7 0M123.1 177.3q3 -1.6 6.1 0M339.7 183.8q4.8 -1.6 9.7 0M373.9 184.9q5.3 -1.6 10.6 0M638.9 184q3.2 -1.6 6.5 0M208.8 187.3q5.3 -1.6 10.6 0M354.4 196.3q4.1 -1.6 8.1 0M753.1 195.2q3.8 -1.6 7.5 0M155.3 184.9q4.5 -1.6 9 0M614.8 195.6q2.6 -1.6 5.2 0M754.7 176.9q5.4 -1.6 10.8 0M579.5 196.5q2.8 -1.6 5.5 0M339.1 195.6q5.4 -1.6 10.8 0M386.9 180.4q4.8 -1.6 9.7 0M303.8 196.8q3.8 -1.6 7.5 0M746.4 180.9q3.8 -1.6 7.7 0M763.9 172.1q5 -1.6 10.1 0M230.5 179.1q5.3 -1.6 10.6 0" fill="none" stroke="#EEF4F8"
++              stroke-width=".8" stroke-linecap="round" opacity=".8"></path>
++          <path d="M256 174Q318 226 380 174M266 178Q318 214 370 178" fill="none"
++              stroke="#E9F0F6" stroke-width="1.1" opacity=".55"></path>
++          <path d="M520 184Q526 170 540 168Q556 168 562 184Z" fill="#8E8C85"
++              stroke="#1C1814" stroke-width=".8"></path>
++          <path d="M528 176Q536 170 546 171" fill="none" stroke="#B9B7AF"
++              stroke-width="1.6"></path>
++          <path d="M244 160Q318 82 392 160L382 167Q318 98 254 167Z"
++              fill="#C3422B" stroke="#1C1814" stroke-width="1"></path>
++          <path d="M256 135.4V148.4M267 125.6V139.5M278 117.7V132.4M289 111.7V127M300 107.6V123.3M311 105.4V121.3M322 105.1V121.1M333 106.8V122.6M344 110.3V125.8M355 115.8V130.8M366 123.2V137.4M377 132.5V145.8" stroke="#1C1814" stroke-width="2.2"></path>
++          <path d="M256 135.4V148.4M267 125.6V139.5M278 117.7V132.4M289 111.7V127M300 107.6V123.3M311 105.4V121.3M322 105.1V121.1M333 106.8V122.6M344 110.3V125.8M355 115.8V130.8M366 123.2V137.4M377 132.5V145.8" stroke="#C3422B" stroke-width="1"></path>
++          <path d="M246 146Q318 64 390 146" fill="none" stroke="#1C1814"
++              stroke-width="4"></path>
++          <path d="M246 146Q318 64 390 146" fill="none" stroke="#C3422B"
++              stroke-width="2.2"></path>
++          <path d="M243 140h6v22h-6ZM387 140h6v22h-6Z" fill="#C3422B"
++              stroke="#1C1814" stroke-width=".8"></path>
++          <path d="M246 133q-4 4 0 7h0q4-3 0-7ZM390 133q-4 4 0 7h0q4-3 0-7Z"
++              fill="#D9B45A" stroke="#1C1814" stroke-width=".6"></path>
++          <path d="M0 146C40 146 90 152 118 166C134 176 128 196 110 206H0Z"
++              fill="url(#carriageMoss)" stroke="#1C1814" stroke-width=".9"></path>
++          <path d="M858 144C830 146 800 156 790 172C782 188 796 200 812 206H858Z"
++              fill="url(#carriageMoss)" stroke="#1C1814" stroke-width=".9"></path>
++          <rect x="110" y="200" width="690" height="10" fill="url(#carriageCurb)"></rect>
++          <rect y="206" width="920" height="30" fill="#E6DCC2"></rect>
++          <path d="M0 209Q20 209 40 209Q60 209.4 80 209Q100 209.7 120 209Q140 209.8 160 209Q180 209.6 200 209Q220 209.2 240 209Q260 208.8 280 209Q300 208.4 320 209Q340 208.2 360 209Q380 208.3 400 209Q420 208.6 440 209Q460 209 480 209Q500 209.4 520 209Q540 209.7 560 209Q580 209.8 600 209Q620 209.6 640 209Q660 209.2 680 209Q700 208.8 720 209Q740 208.4 760 209Q780 208.2 800 209Q820 208.3 840 209Q860 208.6 880 209M0 213Q20 213 40 213Q60 213.4 80 213Q100 213.7 120 213Q140 213.8 160 213Q180 213.6 200 213Q220 213.2 240 213Q260 212.8 280 213Q300 212.4 320 213Q340 212.2 360 213Q380 212.3 400 213Q420 212.6 440 213Q460 213 480 213Q500 213.4 520 213Q540 213.7 560 213Q580 213.8 600 213Q620 213.6 640 213Q660 213.2 680 213Q700 212.8 720 213Q740 212.4 760 213Q780 212.2 800 213Q820 212.3 840 213Q860 212.6 880 213M0 217Q20 217 40 217Q60 217.4 80 217Q100 217.7 120 217Q140 217.8 160 217Q180 217.6 200 217Q220 217.2 240 217Q260 216.8 280 217Q300 216.4 320 217Q340 216.2 360 217Q380 216.3 400 217Q420 216.6 440 217Q460 217 480 217Q500 217.4 520 217Q540 217.7 560 217Q580 217.8 600 217Q620 217.6 640 217Q660 217.2 680 217Q700 216.8 720 217Q740 216.4 760 217Q780 216.2 800 217Q820 216.3 840 217Q860 216.6 880 217M0 221Q20 221 40 221Q60 221.4 80 221Q100 221.7 120 221Q140 221.8 160 221Q180 221.6 200 221Q220 221.2 240 221Q260 220.8 280 221Q300 220.4 320 221Q340 220.2 360 221Q380 220.3 400 221Q420 220.6 440 221Q460 221 480 221Q500 221.4 520 221Q540 221.7 560 221Q580 221.8 600 221Q620 221.6 640 221Q660 221.2 680 221Q700 220.8 720 221Q740 220.4 760 221Q780 220.2 800 221Q820 220.3 840 221Q860 220.6 880 221M0 225Q20 225 40 225Q60 225.4 80 225Q100 225.7 120 225Q140 225.8 160 225Q180 225.6 200 225Q220 225.2 240 225Q260 224.8 280 225Q300 224.4 320 225Q340 224.2 360 225Q380 224.3 400 225Q420 224.6 440 225Q460 225 480 225Q500 225.4 520 225Q540 225.7 560 225Q580 225.8 600 225Q620 225.6 640 225Q660 225.2 680 225Q700 224.8 720 225Q740 224.4 760 225Q780 224.2 800 225Q820 224.3 840 225Q860 224.6 880 225M0 229Q20 229 40 229Q60 229.4 80 229Q100 229.7 120 229Q140 229.8 160 229Q180 229.6 200 229Q220 229.2 240 229Q260 228.8 280 229Q300 228.4 320 229Q340 228.2 360 229Q380 228.3 400 229Q420 228.6 440 229Q460 229 480 229Q500 229.4 520 229Q540 229.7 560 229Q580 229.8 600 229Q620 229.6 640 229Q660 229.2 680 229Q700 228.8 720 229Q740 228.4 760 229Q780 228.2 800 229Q820 228.3 840 229Q860 228.6 880 229M0 233Q20 233 40 233Q60 233.4 80 233Q100 233.7 120 233Q140 233.8 160 233Q180 233.6 200 233Q220 233.2 240 233Q260 232.8 280 233Q300 232.4 320 233Q340 232.2 360 233Q380 232.3 400 233Q420 232.6 440 233Q460 233 480 233Q500 233.4 520 233Q540 233.7 560 233Q580 233.8 600 233Q620 233.6 640 233Q660 233.2 680 233Q700 232.8 720 233Q740 232.4 760 233Q780 232.2 800 233Q820 232.3 840 233Q860 232.6 880 233" fill="none" stroke="#BCAF92" stroke-width=".6"></path>
++          <g fill="#E6DCC2" stroke="#BCAF92" stroke-width=".6"><ellipse cx="480" cy="215" rx="18" ry="5.6"></ellipse><ellipse cx="480" cy="215" rx="22" ry="7.0"></ellipse><ellipse cx="514" cy="223" rx="17" ry="5.199999999999999"></ellipse><ellipse cx="514" cy="223" rx="21" ry="6.6"></ellipse><ellipse cx="550" cy="216" rx="18" ry="5.800000000000001"></ellipse><ellipse cx="550" cy="216" rx="22" ry="7.2"></ellipse><ellipse cx="590" cy="225" rx="16" ry="5.0"></ellipse><ellipse cx="590" cy="225" rx="20" ry="6.4"></ellipse></g>
++          <g fill="#8E8C85" stroke="#1C1814" stroke-width=".8"><ellipse cx="480" cy="215" rx="14" ry="4.2"></ellipse><ellipse cx="514" cy="223" rx="13" ry="3.8"></ellipse><ellipse cx="550" cy="216" rx="14" ry="4.4"></ellipse><ellipse cx="590" cy="225" rx="12" ry="3.6"></ellipse></g>
++          <g fill="#B5B3AB"><ellipse cx="478" cy="213.8" rx="8.4" ry="1.47"></ellipse><ellipse cx="512" cy="221.8" rx="7.8" ry="1.3299999999999998"></ellipse><ellipse cx="548" cy="214.8" rx="8.4" ry="1.54"></ellipse><ellipse cx="588" cy="223.8" rx="7.199999999999999" ry="1.26"></ellipse></g>
++          <ellipse cx="72" cy="216" rx="40" ry="8" fill="url(#carriageMoss)"
++              stroke="#1C1814" stroke-width=".8"></ellipse>
++          <circle cx="72" cy="163" r="26" fill="url(#carriageLanternGlow)"></circle>
++          <path d="M56 208h32v8H56ZM66 178h12v30H66ZM58 172h28v6H58ZM62 154h20v18H62Z"
++              fill="#9C9A91" stroke="#1C1814" stroke-width=".9"></path>
++          <path d="M67 158h10v10H67Z" fill="#F6C85E" stroke="#1C1814"
++              stroke-width=".6"></path>
++          <path d="M50 155Q60 152 72 139Q84 152 94 155Z" fill="#8A887F"
++              stroke="#1C1814" stroke-width=".9"></path>
++          <circle cx="72" cy="136" r="3" fill="#9C9A91" stroke="#1C1814"
++              stroke-width=".8"></circle>
++          <path d="M-20 34C30 36 90 50 150 44C210 38 260 30 330 34C352 36 372 42 392 40"
++              fill="none" stroke="#1C1814" stroke-width="7" stroke-linecap="round"></path>
++          <path d="M-20 34C30 36 90 50 150 44C210 38 260 30 330 34C352 36 372 42 392 40"
++              fill="none" stroke="#5A4632" stroke-width="4.6" stroke-linecap="round"></path>
++          <g fill="#2C4A2E" stroke="#1C1814" stroke-width=".9"><path d="M6 30Q-1.7 26 10 24Q8.4 19 21 19.6Q25.9 14.9 36 18Q46.1 14.9 51 19.6Q63.6 19 62 24Q73.7 26 66 30Q36 36.6 6 30ZM70 50Q63.4 46.3 73.5 44.5Q72.1 39.9 83 40.5Q87.3 36.2 96 39Q104.7 36.2 109 40.5Q119.9 39.9 118.5 44.5Q128.6 46.3 122 50Q96 56 70 50ZM106 22Q99.9 18.6 109.2 17Q107.9 12.8 118 13.3Q121.9 9.4 130 12Q138.1 9.4 142 13.3Q152.1 12.8 150.8 17Q160.1 18.6 154 22Q130 27.5 106 22ZM234 40Q226.8 36 237.8 34Q236.3 29 248 29.6Q252.6 24.9 262 28Q271.4 24.9 276 29.6Q287.7 29 286.2 34Q297.2 36 290 40Q262 46.6 234 40ZM286 22Q279.9 18.6 289.2 17Q287.9 12.8 298 13.3Q301.9 9.4 310 12Q318.1 9.4 322 13.3Q332.1 12.8 330.8 17Q340.1 18.6 334 22Q310 27.5 286 22ZM330 46Q323.4 42.3 333.5 40.5Q332.1 35.9 343 36.5Q347.3 32.2 356 35Q364.7 32.2 369 36.5Q379.9 35.9 378.5 40.5Q388.6 42.3 382 46Q356 52 330 46Z"></path></g>
++          <g fill="#4A6B42"><path d="M12 27.6Q7.5 24.7 16.6 23.2Q18.4 20.1 28.6 20.5Q36 18.3 43.4 20.5Q53.6 20.1 55.4 23.2Q64.5 24.7 60 27.6Q36 30.6 12 27.6ZM75.2 47.8Q71.3 45.2 79.2 43.8Q80.7 40.9 89.6 41.3Q96 39.3 102.4 41.3Q111.3 40.9 112.8 43.8Q120.7 45.2 116.8 47.8Q96 50.5 75.2 47.8ZM110.8 20Q107.2 17.6 114.5 16.4Q115.9 13.7 124.1 14.1Q130 12.2 135.9 14.1Q144.1 13.7 145.5 16.4Q152.8 17.6 149.2 20Q130 22.5 110.8 20ZM239.6 37.6Q235.4 34.7 243.9 33.2Q245.5 30.1 255.1 30.5Q262 28.3 268.9 30.5Q278.5 30.1 280.1 33.2Q288.6 34.7 284.4 37.6Q262 40.6 239.6 37.6ZM290.8 20Q287.2 17.6 294.5 16.4Q295.9 13.7 304.1 14.1Q310 12.2 315.9 14.1Q324.1 13.7 325.5 16.4Q332.8 17.6 329.2 20Q310 22.5 290.8 20ZM335.2 43.8Q331.3 41.2 339.2 39.8Q340.7 36.9 349.6 37.3Q356 35.3 362.4 37.3Q371.3 36.9 372.8 39.8Q380.7 41.2 376.8 43.8Q356 46.5 335.2 43.8Z"></path></g>
++          <path d="M11 32.4l1.9 -6.6M16 32.4l0.6 -6.6M21 32.4l-1.3 -6.6M26 32.4l-0.9 -6.6M31 32.4l1.8 -6.6M36 32.4l-1.1 -6.6M41 32.4l-0.6 -6.6M46 32.4l1.8 -6.6M51 32.4l-0.2 -6.6M56 32.4l-0.2 -6.6M61 32.4l1.2 -6.6M75 52.2l-1.2 -6.1M80 52.2l-1.4 -6.1M85 52.2l1.3 -6.1M90 52.2l-0.3 -6.1M95 52.2l-1.6 -6.1M100 52.2l1 -6.1M105 52.2l1.9 -6.1M110 52.2l-1.4 -6.1M115 52.2l-0.9 -6.1M111 24l-0.5 -5.5M116 24l0.4 -5.5M121 24l-1.6 -5.5M126 24l1.7 -5.5M131 24l2 -5.5M136 24l-1 -5.5M141 24l-0.5 -5.5M146 24l1.8 -5.5M239 42.4l-1.3 -6.6M244 42.4l1.2 -6.6M249 42.4l-0.6 -6.6M254 42.4l1.5 -6.6M259 42.4l-0.9 -6.6M264 42.4l1.3 -6.6M269 42.4l-0.4 -6.6M274 42.4l0 -6.6M279 42.4l0.8 -6.6M284 42.4l-1.6 -6.6M291 24l0.8 -5.5M296 24l1.9 -5.5M301 24l-0.3 -5.5M306 24l-1.8 -5.5M311 24l1.8 -5.5M316 24l0.6 -5.5M321 24l-1.5 -5.5M326 24l-1.8 -5.5M335 48.2l-1 -6.1M340 48.2l0.9 -6.1M345 48.2l-1.8 -6.1M350 48.2l1.9 -6.1M355 48.2l-1.9 -6.1M360 48.2l0.2 -6.1M365 48.2l-1.3 -6.1M370 48.2l0.9 -6.1M375 48.2l-1.2 -6.1" stroke="#1C1814" stroke-width=".6" opacity=".7"></path>
++          <path d="M838 206C836 170 832 130 826 96L830 95C838 128 844 168 846 206Z"
++              fill="#5B3F2E" stroke="#1C1814" stroke-width=".8"></path>
++          <path d="M829 104L806 72M833 120L856 84M827 98L830 40" fill="none"
++              stroke="#1C1814" stroke-width="3" stroke-linecap="round"></path>
++          <path d="M829 104L806 72M833 120L856 84M827 98L830 40" fill="none"
++              stroke="#5B3F2E" stroke-width="1.6" stroke-linecap="round"></path>
++          <g stroke="#1C1814" stroke-width=".9"><path fill="#C4402A" d="M824 62Q826 67.1 821.2 69.7Q819.5 74.9 814.1 73.9Q809.4 76.7 806 72.4Q800.6 71.6 800.7 66.1Q797.1 62 800.7 57.9Q800.6 52.4 806 51.6Q809.4 47.3 814.1 50.1Q819.5 49.1 821.2 54.3Q826 56.9 824 62Z"></path><path fill="#D9592F" d="M847.8 46Q850 51.8 844.5 54.8Q842.5 60.8 836.4 59.6Q831 62.8 827.1 57.9Q820.9 57 821.1 50.7Q816.9 46 821.1 41.3Q820.9 35 827.1 34.1Q831 29.2 836.4 32.4Q842.5 31.2 844.5 37.2Q850 40.2 847.8 46Z"></path><path fill="#C4402A" d="M870.9 70Q873 75.5 867.9 78.3Q866 83.9 860.2 82.7Q855.2 85.8 851.5 81.2Q845.7 80.3 845.9 74.4Q842 70 845.9 65.6Q845.7 59.7 851.5 58.8Q855.2 54.2 860.2 57.3Q866 56.1 867.9 61.7Q873 64.5 870.9 70Z"></path><path fill="#E2733A" d="M807.5 86Q809 90 805.2 92.1Q803.9 96.2 799.6 95.3Q796 97.6 793.3 94.2Q789 93.5 789.1 89.2Q786.3 86 789.1 82.8Q789 78.5 793.3 77.8Q796 74.4 799.6 76.7Q803.9 75.8 805.2 79.9Q809 82 807.5 86Z"></path><path fill="#E2733A" d="M852.3 90Q854 94.4 849.9 96.6Q848.4 101.1 843.8 100.2Q839.8 102.6 836.8 98.9Q832.2 98.2 832.3 93.5Q829.2 90 832.3 86.5Q832.2 81.8 836.8 81.1Q839.8 77.4 843.8 79.8Q848.4 78.9 849.9 83.4Q854 85.6 852.3 90Z"></path><path fill="#C4402A" d="M834.3 28Q836 32.4 831.9 34.6Q830.4 39.1 825.8 38.2Q821.8 40.6 818.8 36.9Q814.2 36.2 814.3 31.5Q811.2 28 814.3 24.5Q814.2 19.8 818.8 19.1Q821.8 15.4 825.8 17.8Q830.4 16.9 831.9 21.4Q836 23.6 834.3 28Z"></path><path fill="#E2733A" d="M859.5 24Q861 28 857.2 30.1Q855.9 34.2 851.6 33.3Q848 35.6 845.3 32.2Q841 31.5 841.1 27.2Q838.3 24 841.1 20.8Q841 16.5 845.3 15.8Q848 12.4 851.6 14.7Q855.9 13.8 857.2 17.9Q861 20 859.5 24Z"></path><path fill="#D9592F" d="M797.7 60Q799 63.3 795.9 65Q794.8 68.3 791.3 67.6Q788.3 69.5 786.1 66.7Q782.6 66.2 782.7 62.6Q780.4 60 782.7 57.4Q782.6 53.8 786.1 53.3Q788.3 50.5 791.3 52.4Q794.8 51.7 795.9 55Q799 56.7 797.7 60Z"></path></g>
++          <path d="M811.4 68.6h0M809.6 55.6h0M809.3 64.9h0M820.1 56.4h0M808 60.3h0M841.3 54.7h0M838.9 46.3h0M832.9 42h0M831.5 45.1h0M828.3 43.1h0M850.7 70.8h0M862.2 76.3h0M860.3 76.7h0M854.6 77.8h0M854.4 63.8h0M804.1 86.3h0M802.2 83h0M792.4 92.3h0M797.8 89.2h0M796.4 92.1h0M845.5 89.4h0M844.2 94.2h0M841.5 96.7h0M840.4 87.6h0M843.3 83.6h0M818.7 20.9h0M825.6 30.5h0M818 32.6h0M818.2 33.4h0M819.8 29.6h0M848 25.8h0M844.8 28.2h0M845.4 30.4h0M846.6 28.6h0M856 24.1h0M791.5 60.1h0M788.7 63.2h0M792.2 60.1h0M789 61.1h0M789.4 56.6h0" stroke="#F3B25E" stroke-width="2.2"
++              stroke-linecap="round"></path>
++          <rect x="698" y="10" width="16" height="60" fill="#F1E2B0"
++              stroke="#1C1814" stroke-width=".9"></rect>
++          <rect x="700" y="12" width="12" height="56" fill="none" stroke="#B8392A"
++              stroke-width=".8"></rect>
++          <text class="garden-title" x="706" y="17">&#x5EAD;&#x306E;&#x5915;&#x66AE;</text>
++          <rect x="700" y="74" width="12" height="12" fill="#B8392A"></rect>
++          <text class="garden-seal" x="706" y="83.4">&#x5EAD;</text>
++        </g>
 +      </defs>
 +    </svg>
 +    <div id="carriageTrain" aria-hidden="true">
@@ -667,6 +866,11 @@
 +            <circle class="lifebuoy-bands" cx="300" cy="206" r="10"></circle>
 +            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
 +            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
++          </svg>
++          <svg class="carriage-scene garden-scene" viewBox="0 0 168 236"
++              preserveAspectRatio="none">
++            <use href="#carriageGarden"></use>
++            <g><path class="garden-leaf leaf-0" fill="#D9592F" d="M792 105L793 107L795 106.8L793.6 108.4L794.4 110.6L792 109.4L789.6 110.6L790.4 108.4L789 106.8L791 107Z"></path><path class="garden-leaf leaf-1" fill="#E2733A" d="M816 129L817 131L819 130.8L817.6 132.4L818.4 134.6L816 133.4L813.6 134.6L814.4 132.4L813 130.8L815 131Z"></path><path class="garden-leaf leaf-2" fill="#C4402A" d="M776 147L777 149L779 148.8L777.6 150.4L778.4 152.6L776 151.4L773.6 152.6L774.4 150.4L773 148.8L775 149Z"></path></g>
 +          </svg>
 +          <div class="carriage-shutter"
 +              style="--drop: 34%; --tilt: -0.95deg; --rattle: -0.15s">
@@ -710,6 +914,11 @@
 +            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
 +            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
 +          </svg>
++          <svg class="carriage-scene garden-scene" viewBox="230 0 168 236"
++              preserveAspectRatio="none">
++            <use href="#carriageGarden"></use>
++            <g><path class="garden-leaf leaf-0" fill="#D9592F" d="M792 105L793 107L795 106.8L793.6 108.4L794.4 110.6L792 109.4L789.6 110.6L790.4 108.4L789 106.8L791 107Z"></path><path class="garden-leaf leaf-1" fill="#E2733A" d="M816 129L817 131L819 130.8L817.6 132.4L818.4 134.6L816 133.4L813.6 134.6L814.4 132.4L813 130.8L815 131Z"></path><path class="garden-leaf leaf-2" fill="#C4402A" d="M776 147L777 149L779 148.8L777.6 150.4L778.4 152.6L776 151.4L773.6 152.6L774.4 150.4L773 148.8L775 149Z"></path></g>
++          </svg>
 +          <div class="carriage-shutter"
 +              style="--drop: 45%; --tilt: 0.9deg; --rattle: -0.8s">
 +            <div class="carriage-slats"></div>
@@ -751,6 +960,11 @@
 +            <circle class="lifebuoy-bands" cx="300" cy="206" r="10"></circle>
 +            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
 +            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
++          </svg>
++          <svg class="carriage-scene garden-scene" viewBox="460 0 168 236"
++              preserveAspectRatio="none">
++            <use href="#carriageGarden"></use>
++            <g><path class="garden-leaf leaf-0" fill="#D9592F" d="M792 105L793 107L795 106.8L793.6 108.4L794.4 110.6L792 109.4L789.6 110.6L790.4 108.4L789 106.8L791 107Z"></path><path class="garden-leaf leaf-1" fill="#E2733A" d="M816 129L817 131L819 130.8L817.6 132.4L818.4 134.6L816 133.4L813.6 134.6L814.4 132.4L813 130.8L815 131Z"></path><path class="garden-leaf leaf-2" fill="#C4402A" d="M776 147L777 149L779 148.8L777.6 150.4L778.4 152.6L776 151.4L773.6 152.6L774.4 150.4L773 148.8L775 149Z"></path></g>
 +          </svg>
 +          <div class="carriage-shutter"
 +              style="--drop: 58%; --tilt: 0.8deg; --rattle: -0.62s">
@@ -794,6 +1008,11 @@
 +            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
 +            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
 +          </svg>
++          <svg class="carriage-scene garden-scene" viewBox="690 0 168 236"
++              preserveAspectRatio="none">
++            <use href="#carriageGarden"></use>
++            <g><path class="garden-leaf leaf-0" fill="#D9592F" d="M792 105L793 107L795 106.8L793.6 108.4L794.4 110.6L792 109.4L789.6 110.6L790.4 108.4L789 106.8L791 107Z"></path><path class="garden-leaf leaf-1" fill="#E2733A" d="M816 129L817 131L819 130.8L817.6 132.4L818.4 134.6L816 133.4L813.6 134.6L814.4 132.4L813 130.8L815 131Z"></path><path class="garden-leaf leaf-2" fill="#C4402A" d="M776 147L777 149L779 148.8L777.6 150.4L778.4 152.6L776 151.4L773.6 152.6L774.4 150.4L773 148.8L775 149Z"></path></g>
++          </svg>
 +          <div class="carriage-reflection"></div>
 +        </div>
 +      </div>
@@ -804,18 +1023,20 @@
        <cr-most-visited id="mostVisited" .theme="${this.theme_?.mostVisited || null}"
 --- a/chrome/browser/resources/new_tab_page/app.ts
 +++ b/chrome/browser/resources/new_tab_page/app.ts
-@@ -156,6 +156,19 @@
+@@ -156,6 +156,21 @@
    };
  }
  
-+// Carriage: which scene the new tab page shows, the night train or the
-+// Le Havre - New York crossing. Remembered on this Mac only.
++// Carriage: which scene the new tab page shows -- the night train, the
++// Le Havre - New York crossing, or a print of a Japanese garden.
++// Remembered on this Mac only.
 +const CARRIAGE_SCENE_KEY = 'carriage.scene';
++const CARRIAGE_SCENES = ['rail', 'sea', 'garden'];
 +
 +function carriageSceneStored(): string {
 +  try {
-+    return window.localStorage.getItem(CARRIAGE_SCENE_KEY) === 'sea' ? 'sea' :
-+                                                                        'rail';
++    const stored = window.localStorage.getItem(CARRIAGE_SCENE_KEY);
++    return stored && CARRIAGE_SCENES.includes(stored) ? stored : 'rail';
 +  } catch {
 +    return 'rail';
 +  }
@@ -824,7 +1045,7 @@
  export class AppElement extends AppElementBase {
    static get is() {
      return 'ntp-app';
-@@ -289,6 +302,8 @@
+@@ -289,6 +304,8 @@
         * to show up immediately on load.
         */
        lazyRender_: {type: Boolean},
@@ -833,7 +1054,7 @@
  
        scrolledToTop_: {type: Boolean},
  
-@@ -426,6 +441,7 @@
+@@ -426,6 +443,7 @@
        loadTimeData.getBoolean('multiLineEnabled');
    protected accessor modulesLoaded_: boolean = false;
    protected accessor lazyRender_: boolean = false;
@@ -841,13 +1062,13 @@
    protected accessor scrolledToTop_: boolean =
        document.documentElement.scrollTop <= 0;
    protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
-@@ -1014,6 +1030,16 @@
+@@ -1014,6 +1032,16 @@
      this.showLensUploadDialog_ = false;
    }
  
 +  protected onCarriageSceneClick_(e: Event) {
-+    const scene = (e.currentTarget as HTMLElement).dataset['scene'];
-+    this.carriageScene_ = scene === 'sea' ? 'sea' : 'rail';
++    const scene = (e.currentTarget as HTMLElement).dataset['scene'] ?? '';
++    this.carriageScene_ = CARRIAGE_SCENES.includes(scene) ? scene : 'rail';
 +    try {
 +      window.localStorage.setItem(CARRIAGE_SCENE_KEY, this.carriageScene_);
 +    } catch {
