@@ -6,7 +6,7 @@
  }
 +
 +/* Carriage: a night train of windows. You are aboard after dark: mahogany
-+   panelling, brass, and five windows in a row. One landscape runs past
++   panelling, brass, and four windows in a row. One landscape runs past
 +   behind them, carrying across the piers between the windows, so the row
 +   reads as a train. */
 +#carriagePanelling {
@@ -293,7 +293,7 @@
 +}
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -1,4 +1,152 @@
+@@ -1,4 +1,131 @@
  <div id="content">
 +  <div id="carriagePanelling" aria-hidden="true">
 +    <div class="carriage-brass-band top"></div>
@@ -346,14 +346,14 @@
 +      <div class="carriage-glass">
 +        <svg class="carriage-scene" viewBox="0 0 168 236"
 +            preserveAspectRatio="none">
-+          <rect class="scene-sky" x="0" y="0" width="1150" height="236"></rect>
-+          <rect class="scene-stars" x="0" y="0" width="1150" height="236"></rect>
-+          <circle class="moon-glow" cx="1004" cy="52" r="46"></circle>
-+          <circle class="moon" cx="1004" cy="52" r="15"></circle>
-+          <rect class="scene-hills" x="-900" y="0" width="2950" height="236"></rect>
-+          <rect class="scene-woods" x="-620" y="0" width="2390" height="236"></rect>
-+          <rect class="scene-poles" x="-340" y="0" width="1830" height="236"></rect>
-+          <rect class="scene-hedge" x="-170" y="0" width="1490" height="236"></rect>
++          <rect class="scene-sky" x="0" y="0" width="920" height="236"></rect>
++          <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
++          <circle class="moon-glow" cx="774" cy="52" r="46"></circle>
++          <circle class="moon" cx="774" cy="52" r="15"></circle>
++          <rect class="scene-hills" x="-900" y="0" width="2720" height="236"></rect>
++          <rect class="scene-woods" x="-620" y="0" width="2160" height="236"></rect>
++          <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
++          <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
 +        </svg>
 +        <div class="carriage-shutter"
 +            style="--drop: 34%; --tilt: -0.95deg; --rattle: -0.15s">
@@ -367,14 +367,14 @@
 +      <div class="carriage-glass">
 +        <svg class="carriage-scene" viewBox="230 0 168 236"
 +            preserveAspectRatio="none">
-+          <rect class="scene-sky" x="0" y="0" width="1150" height="236"></rect>
-+          <rect class="scene-stars" x="0" y="0" width="1150" height="236"></rect>
-+          <circle class="moon-glow" cx="1004" cy="52" r="46"></circle>
-+          <circle class="moon" cx="1004" cy="52" r="15"></circle>
-+          <rect class="scene-hills" x="-900" y="0" width="2950" height="236"></rect>
-+          <rect class="scene-woods" x="-620" y="0" width="2390" height="236"></rect>
-+          <rect class="scene-poles" x="-340" y="0" width="1830" height="236"></rect>
-+          <rect class="scene-hedge" x="-170" y="0" width="1490" height="236"></rect>
++          <rect class="scene-sky" x="0" y="0" width="920" height="236"></rect>
++          <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
++          <circle class="moon-glow" cx="774" cy="52" r="46"></circle>
++          <circle class="moon" cx="774" cy="52" r="15"></circle>
++          <rect class="scene-hills" x="-900" y="0" width="2720" height="236"></rect>
++          <rect class="scene-woods" x="-620" y="0" width="2160" height="236"></rect>
++          <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
++          <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
 +        </svg>
 +        <div class="carriage-shutter"
 +            style="--drop: 45%; --tilt: 0.9deg; --rattle: -0.8s">
@@ -388,14 +388,14 @@
 +      <div class="carriage-glass">
 +        <svg class="carriage-scene" viewBox="460 0 168 236"
 +            preserveAspectRatio="none">
-+          <rect class="scene-sky" x="0" y="0" width="1150" height="236"></rect>
-+          <rect class="scene-stars" x="0" y="0" width="1150" height="236"></rect>
-+          <circle class="moon-glow" cx="1004" cy="52" r="46"></circle>
-+          <circle class="moon" cx="1004" cy="52" r="15"></circle>
-+          <rect class="scene-hills" x="-900" y="0" width="2950" height="236"></rect>
-+          <rect class="scene-woods" x="-620" y="0" width="2390" height="236"></rect>
-+          <rect class="scene-poles" x="-340" y="0" width="1830" height="236"></rect>
-+          <rect class="scene-hedge" x="-170" y="0" width="1490" height="236"></rect>
++          <rect class="scene-sky" x="0" y="0" width="920" height="236"></rect>
++          <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
++          <circle class="moon-glow" cx="774" cy="52" r="46"></circle>
++          <circle class="moon" cx="774" cy="52" r="15"></circle>
++          <rect class="scene-hills" x="-900" y="0" width="2720" height="236"></rect>
++          <rect class="scene-woods" x="-620" y="0" width="2160" height="236"></rect>
++          <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
++          <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
 +        </svg>
 +        <div class="carriage-shutter"
 +            style="--drop: 58%; --tilt: 0.8deg; --rattle: -0.62s">
@@ -409,35 +409,14 @@
 +      <div class="carriage-glass">
 +        <svg class="carriage-scene" viewBox="690 0 168 236"
 +            preserveAspectRatio="none">
-+          <rect class="scene-sky" x="0" y="0" width="1150" height="236"></rect>
-+          <rect class="scene-stars" x="0" y="0" width="1150" height="236"></rect>
-+          <circle class="moon-glow" cx="1004" cy="52" r="46"></circle>
-+          <circle class="moon" cx="1004" cy="52" r="15"></circle>
-+          <rect class="scene-hills" x="-900" y="0" width="2950" height="236"></rect>
-+          <rect class="scene-woods" x="-620" y="0" width="2390" height="236"></rect>
-+          <rect class="scene-poles" x="-340" y="0" width="1830" height="236"></rect>
-+          <rect class="scene-hedge" x="-170" y="0" width="1490" height="236"></rect>
-+        </svg>
-+        <div class="carriage-shutter"
-+            style="--drop: 21%; --tilt: -0.5deg; --rattle: -0.34s">
-+          <div class="carriage-slats"></div>
-+          <div class="carriage-rail"><span class="carriage-cord"></span></div>
-+        </div>
-+        <div class="carriage-reflection"></div>
-+      </div>
-+    </div>
-+    <div class="carriage-window">
-+      <div class="carriage-glass">
-+        <svg class="carriage-scene" viewBox="920 0 168 236"
-+            preserveAspectRatio="none">
-+          <rect class="scene-sky" x="0" y="0" width="1150" height="236"></rect>
-+          <rect class="scene-stars" x="0" y="0" width="1150" height="236"></rect>
-+          <circle class="moon-glow" cx="1004" cy="52" r="46"></circle>
-+          <circle class="moon" cx="1004" cy="52" r="15"></circle>
-+          <rect class="scene-hills" x="-900" y="0" width="2950" height="236"></rect>
-+          <rect class="scene-woods" x="-620" y="0" width="2390" height="236"></rect>
-+          <rect class="scene-poles" x="-340" y="0" width="1830" height="236"></rect>
-+          <rect class="scene-hedge" x="-170" y="0" width="1490" height="236"></rect>
++          <rect class="scene-sky" x="0" y="0" width="920" height="236"></rect>
++          <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
++          <circle class="moon-glow" cx="774" cy="52" r="46"></circle>
++          <circle class="moon" cx="774" cy="52" r="15"></circle>
++          <rect class="scene-hills" x="-900" y="0" width="2720" height="236"></rect>
++          <rect class="scene-woods" x="-620" y="0" width="2160" height="236"></rect>
++          <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
++          <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
 +        </svg>
 +        <div class="carriage-reflection"></div>
 +      </div>
