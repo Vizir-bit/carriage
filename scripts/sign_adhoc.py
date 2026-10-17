@@ -1,8 +1,22 @@
 #!/usr/bin/env python3
-"""Sign a Carriage app ad hoc from the inside out, keeping each part's own
-entitlements and signing flags as built, except the hardened runtime.
+"""Sign a Carriage app ad hoc, for local development and test builds only,
+from the inside out, keeping each part's own entitlements and signing flags as
+built, except the hardened runtime.
 
-usage: sign_adhoc.py APP [--compare-with ARCH=INPUT.app]...
+usage: sign_adhoc.py APP [--compare-with ARCH=INPUT.app]... [--allow-team-id]
+
+Local development signing versus distribution signing:
+- This script makes a local development (test) signature: ad hoc, with no
+  certificate and no Team ID, as Carriage's test builds have today
+  (sign_and_package_app.sh without MACOS_CERTIFICATE_NAME).
+- Distribution signing is different and is not done here: Developer ID, one
+  Team ID across every part, the hardened runtime and per-part entitlements
+  kept, then notarisation (sign_and_package_app.sh with a certificate, through
+  Chromium's sign_chrome.py; milestone C7). An ad-hoc signature cannot carry a
+  vendor's trust, so this script refuses an input that has a Team ID: re-signing
+  it would discard its distribution signature. --allow-team-id lets a deliberate
+  local experiment through (for example re-signing an official engine for
+  local testing); the result is still only a local development build.
 
 `codesign --deep` signs every nested helper like the outer app and drops the
 helpers' own entitlements. Here every piece of code is signed on its own,
@@ -10,8 +24,9 @@ deepest first and the app last, with --preserve-metadata=identifier,entitlements
 and its other flags (hard, kill, restrict) set again. No certificate, Team ID
 or designated requirement is carried over: an ad-hoc signature has none.
 
-The hardened runtime (and explicit library validation) is not kept: under it,
-an ad-hoc program is refused every ad-hoc framework or library it loads,
+In local development signing the hardened runtime (and explicit library
+validation) is not kept: under it, an ad-hoc program is refused every ad-hoc
+framework or library it loads,
 because ad-hoc code has no Team ID ("mapping process and mapped file
 (non-platform) have different Team IDs"; tested 17 October 2026), so Carriage
 would not start. Keeping it would mean adding the
@@ -19,8 +34,8 @@ com.apple.security.cs.disable-library-validation entitlement, which the input
 did not have (tested: that does load). For test builds this script instead
 matches today's ad-hoc Carriage signing, which has no hardened runtime. This is
 a trade-off: the hardened runtime also has other protections, which these test
-builds do without. Distribution signing (Developer ID, one Team ID, C7) should
-decide runtime and entitlements per component.
+builds do without. Distribution signing keeps the runtime, because there every
+part shares one Team ID.
 
 A universal file gets one set of flags for both architectures; if its two
 slices came with different kept flags, the comparison below reports it.
@@ -125,16 +140,33 @@ def signing_of(path, arch):
     return flags, entitlements
 
 
+def team_of(path):
+    info = subprocess.run(['codesign', '-dv', path], capture_output=True, text=True)
+    m = re.search(r'^TeamIdentifier=(.+)$', info.stderr, re.M)
+    team = m.group(1).strip() if m else ''
+    return '' if team == 'not set' else team
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('app')
     ap.add_argument('--compare-with', action='append', default=[],
                     metavar='ARCH=INPUT.app')
+    ap.add_argument('--allow-team-id', action='store_true',
+                    help='re-sign parts that carry a Team ID anyway (local experiments only)')
     args = ap.parse_args()
     app = args.app.rstrip('/')
     inputs = dict(item.split('=', 1) for item in args.compare_with)
 
     parts = nested_code(app)
+    teams = sorted({f'{os.path.relpath(p, app)} ({t})' for p in parts + [app]
+                    if (t := team_of(p))})
+    if teams and not args.allow_team_id:
+        for line in teams:
+            print('error: distribution-signed part:', line, file=sys.stderr)
+        sys.exit('This app carries a Developer ID signature. Re-signing it ad hoc would '
+                 'discard that; sign it for distribution instead (C7), or pass '
+                 '--allow-team-id for a local development experiment. Nothing was signed.')
     dropped = []
     for path in parts + [app]:
         flags = max((signing_of(path, a)[0] or 0 for a in archs_of(path)), default=0)
@@ -148,8 +180,9 @@ def main():
     subprocess.run(['codesign', '--verify', '--deep', '--strict', app], check=True)
     print(f'signed {len(parts)} nested parts and the app, inside out; signature valid')
     for rel in dropped:
-        print(f'note: {rel}: hardened runtime not kept (an ad-hoc signature cannot '
-              f'load its ad-hoc libraries with it)')
+        print(f'note: {rel}: hardened runtime not kept (local ad-hoc signing has no '
+              f'Team ID, so it could not load its ad-hoc libraries; distribution '
+              f'signing keeps it)')
 
     problems = []
     for path in parts + [app]:

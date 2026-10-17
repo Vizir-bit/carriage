@@ -104,7 +104,12 @@ jobs:
           python3 scripts/make_universal.py in/arm64/Carriage.app in/x86_64/Carriage.app \
             out/Carriage.app ${extra[@]+"${extra[@]}"}
           if [ "$HAS_CERTIFICATE" = true ]; then
-            echo "::warning::The universal app is signed ad hoc; Developer ID signing and notarisation of the merged app are not set up yet (C7)"
+            # The two builds are then Developer ID signed and notarised; an
+            # ad-hoc universal app would quietly lose that (sign_adhoc.py
+            # refuses Team ID inputs). Distribution signing of the merged app
+            # is milestone C7.
+            echo "::error::This workflow makes local development (ad-hoc) universal builds only; Developer ID signing of the merged app is not set up yet (C7)"
+            exit 1
           fi
           # Inside out, keeping each helper's own entitlements and flags (not
           # codesign --deep, which drops them), then compared with both inputs.
