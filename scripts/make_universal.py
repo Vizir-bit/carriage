@@ -9,9 +9,13 @@ usage: make_universal.py ARM64.app X86_64.app OUT.app [--take-arm64 GLOB]...
   the first build, its x86_64 slice from the second.
 - Any other file must be identical in both builds, or exist in only one of them
   (as Chromium's per-architecture V8 snapshots do), or be an Info.plist whose
-  only difference is LSMinimumSystemVersion (the higher one is kept).
-- Code signatures are not merged: sign the result afterwards
-  (codesign --force --deep --sign - OUT.app, as for any Carriage test build).
+  differences are only the build machine's (Xcode and SDK versions: the arm64
+  values are kept) or LSMinimumSystemVersion (the higher one is kept).
+- Both inputs must be the same app at the same version (identifier,
+  executable, version and build number), one per architecture.
+- Code signatures are not merged (_CodeSignature folders and CodeResources
+  files are taken from the arm64 build): sign the result afterwards with
+  scripts/sign_adhoc.py, which keeps each part's entitlements and flags.
 
 Anything else stops the merge, with the full list, rather than guessing. A file
 that may safely be taken from the arm64 build can be named with --take-arm64
@@ -29,6 +33,13 @@ import sys
 import tempfile
 
 ARCHS = ('arm64', 'x86_64')
+# Keys that record the machine a bundle was built on; two runners may differ.
+BUILD_KEYS = {'BuildMachineOSBuild', 'DTCompiler', 'DTPlatformBuild',
+              'DTPlatformName', 'DTPlatformVersion', 'DTSDKBuild', 'DTSDKName',
+              'DTXcode', 'DTXcodeBuild'}
+# Same slice alignment as Chromium's universalizer, so that the slices of the
+# main executable keep their places from one update to the next.
+SEGALIGN = ['-segalign', 'x86_64', '0x4000', '-segalign', 'arm64', '0x4000']
 MACHO_MAGICS = {
     b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf',  # 64-bit
     b'\xce\xfa\xed\xfe', b'\xfe\xed\xfa\xce',  # 32-bit
@@ -71,6 +82,39 @@ def entries(top):
     return found
 
 
+IDENTITY_KEYS = ('CFBundleIdentifier', 'CFBundleExecutable',
+                 'CFBundleShortVersionString', 'CFBundleVersion')
+
+
+def identity_problems(top_a, top_b):
+    """Both inputs must be one app at one version, built for each architecture."""
+    problems, info = [], []
+    for top in (top_a, top_b):
+        try:
+            with open(os.path.join(top, 'Contents', 'Info.plist'), 'rb') as f:
+                info.append(plistlib.load(f))
+        except (OSError, plistlib.InvalidFileException) as e:
+            return [f'{top}: no readable Contents/Info.plist ({e})']
+    for key in IDENTITY_KEYS:
+        if info[0].get(key) != info[1].get(key):
+            problems.append(f'Contents/Info.plist: {key} is {info[0].get(key)!r} in '
+                            f'the arm64 build and {info[1].get(key)!r} in the x86_64 build')
+    exe = os.path.join('Contents', 'MacOS', str(info[0].get('CFBundleExecutable')))
+    for top, arch in ((top_a, 'arm64'), (top_b, 'x86_64')):
+        path = os.path.join(top, exe)
+        archs = archs_of(path) if os.path.isfile(path) else set()
+        if arch not in archs:
+            problems.append(f'{exe}: the {arch} build has {" ".join(sorted(archs)) or "no"} '
+                            f'code, not {arch}')
+    return problems
+
+
+def is_signature(rel):
+    """Signature metadata, rewritten whenever the bundle is signed."""
+    parts = rel.split(os.sep)
+    return '_CodeSignature' in parts or parts[-1] == 'CodeResources'
+
+
 def merge_plists(a, b):
     with open(a, 'rb') as f:
         raw = f.read()
@@ -80,7 +124,8 @@ def merge_plists(a, b):
     if not isinstance(pa, dict) or not isinstance(pb, dict):
         return None, ['not a dictionary']
     differ = sorted(k for k in set(pa) | set(pb) if pa.get(k) != pb.get(k))
-    unresolved = [k for k in differ if k != 'LSMinimumSystemVersion']
+    unresolved = [k for k in differ
+                  if k != 'LSMinimumSystemVersion' and k not in BUILD_KEYS]
     if unresolved:
         return None, unresolved
     if 'LSMinimumSystemVersion' in differ:
@@ -108,6 +153,13 @@ def main():
     if not args.dry_run and os.path.lexists(out):
         sys.exit(f'{out} exists; choose a new output path')
 
+    problems = identity_problems(top_a, top_b)
+    if problems:
+        for line in problems:
+            print('error:', line, file=sys.stderr)
+        sys.exit('the two inputs are not one app built for each architecture; '
+                 'no universal app was made')
+
     ea, eb = entries(top_a), entries(top_b)
     errors, notes = [], []
     counts = dict.fromkeys(('lipo', 'same', 'one build', 'plist', 'signature',
@@ -123,14 +175,33 @@ def main():
             errors.append(f'{rel}: no {arch} slice in the {arch} build '
                           f'(has {" ".join(sorted(archs)) or "none"})')
             return None
-        if archs == {arch}:
+        if archs == {arch} or args.dry_run:
             return path
         thin = os.path.join(tmp, f'{len(os.listdir(tmp))}.{arch}')
         subprocess.run(['lipo', path, '-thin', arch, '-output', thin], check=True)
         return thin
 
-    if not args.dry_run:
-        os.makedirs(out)
+    finished = False
+    try:
+        if not args.dry_run:
+            os.makedirs(out)
+        walk(args, top_a, top_b, ea, eb, errors, notes, counts, write, slice_of)
+        finished = not errors
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        if not finished and not args.dry_run:
+            shutil.rmtree(out, ignore_errors=True)
+    for line in notes:
+        print('note:', line)
+    print(', '.join(f'{n} {k}' for k, n in counts.items()))
+    if errors:
+        for line in errors:
+            print('error:', line, file=sys.stderr)
+        sys.exit(f'{len(errors)} problem(s); no universal app was made')
+    print('dry run: nothing written' if args.dry_run else f'universal app: {out}')
+
+
+def walk(args, top_a, top_b, ea, eb, errors, notes, counts, write, slice_of):
     for rel in sorted(set(ea) | set(eb)):
         ka, kb = ea.get(rel), eb.get(rel)
         a, b, dest = os.path.join(top_a, rel), os.path.join(top_b, rel), write(rel)
@@ -163,7 +234,7 @@ def main():
             counts['one build'] += 1
             if dest:
                 shutil.copy2(src, dest)
-        elif '_CodeSignature' in rel.split(os.sep):
+        elif is_signature(rel):
             counts['signature'] += 1  # Replaced when the result is signed.
             if dest:
                 shutil.copy2(a, dest)
@@ -172,8 +243,8 @@ def main():
             if sa and sb:
                 counts['lipo'] += 1
                 if dest:
-                    subprocess.run(['lipo', '-create', sa, sb, '-output', dest],
-                                   check=True)
+                    subprocess.run(['lipo', '-create', sa, sb, *SEGALIGN,
+                                    '-output', dest], check=True)
                     shutil.copymode(a, dest)
         elif is_macho(a) != is_macho(b):
             errors.append(f'{rel}: program code in one build only')
@@ -181,35 +252,22 @@ def main():
             counts['same'] += 1
             if dest:
                 shutil.copy2(a, dest)
-        elif os.path.basename(rel) == 'Info.plist':
-            merged, keys = merge_plists(a, b)
-            if keys:
-                errors.append(f'{rel}: Info.plist differs in {", ".join(keys)}')
-                continue
+        elif (rel.endswith('Info.plist') and not merge_plists(a, b)[1]):
             counts['plist'] += 1
             if dest:
                 with open(dest, 'wb') as f:
-                    f.write(merged)
+                    f.write(merge_plists(a, b)[0])
                 shutil.copymode(a, dest)
         elif any(fnmatch.fnmatch(rel, pat) for pat in args.take_arm64):
             counts['taken from arm64'] += 1
             notes.append(f'{rel}: differs; arm64 copy kept (--take-arm64)')
             if dest:
                 shutil.copy2(a, dest)
+        elif rel.endswith('Info.plist'):
+            keys = ', '.join(merge_plists(a, b)[1])
+            errors.append(f'{rel}: Info.plist differs in {keys}')
         else:
             errors.append(f'{rel}: differs between the two builds')
-
-    shutil.rmtree(tmp, ignore_errors=True)
-    for line in notes:
-        print('note:', line)
-    print(', '.join(f'{n} {k}' for k, n in counts.items()))
-    if errors:
-        for line in errors:
-            print('error:', line, file=sys.stderr)
-        if not args.dry_run:
-            shutil.rmtree(out, ignore_errors=True)
-        sys.exit(f'{len(errors)} problem(s); no universal app was made')
-    print('dry run: nothing written' if args.dry_run else f'universal app: {out}')
 
 
 if __name__ == '__main__':

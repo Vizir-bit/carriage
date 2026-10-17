@@ -8,6 +8,8 @@ on:
   workflow_call:
     inputs:
       run_id: {required: true, type: string}
+      x86_64_run_id: {required: false, type: string, default: ''}
+      same_source_confirmed: {required: false, type: boolean, default: false}
       take_arm64: {required: false, type: string, default: ''}
     outputs:
       file_name:
@@ -15,8 +17,17 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: Build run holding both disk images (carriage_*_arm64-macos.dmg and carriage_*_x86_64-macos.dmg)
+        description: Build run holding the arm64 disk image (carriage_*_arm64-macos.dmg), and the x86_64 one unless given below
         required: true
+      x86_64_run_id:
+        description: 'Only if the x86_64 disk image comes from another run (for example a resumed build): that run'
+        required: false
+        default: ''
+      same_source_confirmed:
+        description: 'Only with x86_64_run_id when the two runs started from different commits: I have checked that both builds come from the same Carriage source'
+        type: boolean
+        required: false
+        default: false
       take_arm64:
         description: 'Only if a merge stopped on a data file that may safely come from the arm64 build: its path pattern(s), separated by spaces'
         required: false
@@ -36,11 +47,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Fetch the arm64 and x86_64 disk images
+      - name: Check that both builds come from the same source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARM_RUN: ${{ inputs.run_id }}
+          X86_RUN: ${{ inputs.x86_64_run_id || inputs.run_id }}
+          CONFIRMED: ${{ inputs.same_source_confirmed }}
+        run: |
+          set -euo pipefail
+          arm_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARM_RUN" --jq .head_sha)
+          x86_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$X86_RUN" --jq .head_sha)
+          echo "arm64 from run $ARM_RUN at $arm_sha; x86_64 from run $X86_RUN at $x86_sha"
+          if [ "$arm_sha" != "$x86_sha" ] && [ "$CONFIRMED" != true ]; then
+            echo "::error::The two runs started from different commits. Check that both builds come from the same Carriage source, then run again with same_source_confirmed"
+            exit 1
+          fi
+      - name: Fetch the arm64 disk image
         uses: actions/download-artifact@v4
         with:
-          pattern: carriage_*-macos.dmg
+          pattern: carriage_*_arm64-macos.dmg
           run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dl
+          merge-multiple: true
+      - name: Fetch the x86_64 disk image
+        uses: actions/download-artifact@v4
+        with:
+          pattern: carriage_*_x86_64-macos.dmg
+          run-id: ${{ inputs.x86_64_run_id || inputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: dl
           merge-multiple: true
@@ -48,7 +82,6 @@ jobs:
         id: merge
         env:
           TAKE_ARM64: ${{ inputs.take_arm64 }}
-          RUN_ID: ${{ inputs.run_id }}
           HAS_CERTIFICATE: ${{ secrets.PROD_MACOS_CERTIFICATE != '' }}
         run: |
           set -euxo pipefail
@@ -56,7 +89,10 @@ jobs:
           arm=$(find dl -name 'carriage_*_arm64-macos.dmg' | head -1)
           x86=$(find dl -name 'carriage_*_x86_64-macos.dmg' | head -1)
           if [ -z "$arm" ] || [ -z "$x86" ]; then
-            echo "::error::Run $RUN_ID does not hold both disk images"; exit 1
+            echo "::error::Missing a disk image: arm64 '${arm}', x86_64 '${x86}'"; exit 1
+          fi
+          if [ "$(basename "${arm/_arm64-macos.dmg/}")" != "$(basename "${x86/_x86_64-macos.dmg/}")" ]; then
+            echo "::error::The two disk images are different versions: $arm, $x86"; exit 1
           fi
           for pair in "arm64:$arm" "x86_64:$x86"; do
             cpu=${pair%%:*}; dmg=${pair#*:}
@@ -70,7 +106,10 @@ jobs:
           if [ "$HAS_CERTIFICATE" = true ]; then
             echo "::warning::The universal app is signed ad hoc; Developer ID signing and notarisation of the merged app are not set up yet (C7)"
           fi
-          codesign --force --deep --sign - out/Carriage.app
+          # Inside out, keeping each helper's own entitlements and flags (not
+          # codesign --deep, which drops them), then compared with both inputs.
+          python3 scripts/sign_adhoc.py out/Carriage.app \
+            --compare-with arm64=in/arm64/Carriage.app --compare-with x86_64=in/x86_64/Carriage.app
           codesign --verify --deep --strict --verbose=2 out/Carriage.app
           lipo -archs out/Carriage.app/Contents/MacOS/Carriage | tee archs.txt
           grep -q arm64 archs.txt && grep -q x86_64 archs.txt
@@ -81,14 +120,22 @@ jobs:
           set -eux
           app=out/Carriage.app/Contents/MacOS/Carriage
           flags=(--headless=new --no-first-run --use-mock-keychain --disable-crash-reporter
-                 --virtual-time-budget=5000 --window-size=1440,900)
+                 --enable-logging=stderr --v=0 --virtual-time-budget=5000 --window-size=1440,900)
+          # A screenshot alone does not prove the page worked: also fail on
+          # any uncaught error from the new tab page's scripts.
+          check() {
+            test -s "ntp-universal-$1.png"
+            if grep -i "uncaught" "ntp-universal-$1.log" | grep -i "new-tab-page"; then
+              echo "::error::The new tab page reported an error on $1"; exit 1
+            fi
+          }
           "$app" "${flags[@]}" --user-data-dir="$RUNNER_TEMP/p-arm64" \
-            --screenshot="$PWD/ntp-universal-arm64.png" chrome://new-tab-page/
-          test -s ntp-universal-arm64.png
+            --screenshot="$PWD/ntp-universal-arm64.png" chrome://new-tab-page/ 2> ntp-universal-arm64.log
+          check arm64
           if arch -x86_64 /usr/bin/true 2>/dev/null; then
             arch -x86_64 "$app" "${flags[@]}" --user-data-dir="$RUNNER_TEMP/p-x86_64" \
-              --screenshot="$PWD/ntp-universal-x86_64.png" chrome://new-tab-page/
-            test -s ntp-universal-x86_64.png
+              --screenshot="$PWD/ntp-universal-x86_64.png" chrome://new-tab-page/ 2> ntp-universal-x86_64.log
+            check x86_64
           else
             echo "::warning::No Rosetta on this runner: the Intel half was merged and signed but not opened"
           fi
@@ -130,5 +177,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ntp-universal-screenshots
-          path: ntp-universal-*.png
+          path: |
+            ntp-universal-*.png
+            ntp-universal-*.log
           if-no-files-found: warn
