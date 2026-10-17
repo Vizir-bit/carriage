@@ -1,8 +1,9 @@
 name: Carriage — universal app (Apple silicon and Intel)
 
-# Joins the arm64 and x86_64 disk images of one build run into a single
-# universal Carriage.app and disk image. Called at the end of build.yml; can
-# also be run by hand on a finished build run.
+# Joins the arm64 and x86_64 disk images of a build into a single universal
+# Carriage.app and disk image. Called at the end of build.yml; can also be run
+# by hand on a finished build run, or on two runs of the same source (an arm64
+# run and a separate Intel run, such as a resumed or companion build).
 
 on:
   workflow_call:
@@ -14,6 +15,12 @@ on:
     outputs:
       file_name:
         value: ${{ jobs.universal.outputs.file_name }}
+  # A push of this file to this branch only registers the workflow, so that it
+  # can be run by hand from the branch before it reaches main; the job itself
+  # is skipped for pushes.
+  push:
+    branches: [essex/codex-improvements-debug-eecb34]
+    paths: [.github/workflows/universal.yml]
   workflow_dispatch:
     inputs:
       run_id:
@@ -24,7 +31,7 @@ on:
         required: false
         default: ''
       same_source_confirmed:
-        description: 'Only with x86_64_run_id when the two runs started from different commits: I have checked that both builds come from the same Carriage source'
+        description: 'Only if the check refuses two runs whose commits differ outside .github/: I have checked that both builds come from the same Carriage source'
         type: boolean
         required: false
         default: false
@@ -41,6 +48,7 @@ jobs:
   universal:
     name: Merge into a universal app
     runs-on: macos-latest
+    if: ${{ github.event_name != 'push' }}
     outputs:
       file_name: ${{ steps.merge.outputs.file_name }}
     steps:
@@ -58,9 +66,21 @@ jobs:
           arm_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARM_RUN" --jq .head_sha)
           x86_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$X86_RUN" --jq .head_sha)
           echo "arm64 from run $ARM_RUN at $arm_sha; x86_64 from run $X86_RUN at $x86_sha"
-          if [ "$arm_sha" != "$x86_sha" ] && [ "$CONFIRMED" != true ]; then
-            echo "::error::The two runs started from different commits. Check that both builds come from the same Carriage source, then run again with same_source_confirmed"
-            exit 1
+          if [ "$arm_sha" != "$x86_sha" ]; then
+            # Different commits are still one source if they differ only in
+            # workflows (for example a companion build that adds one).
+            git fetch --no-tags --depth=1 origin "$arm_sha" "$x86_sha"
+            outside=$(git diff --name-only "$arm_sha" "$x86_sha" -- . ':(exclude).github')
+            if [ -z "$outside" ]; then
+              echo "Different commits, same source: they differ only under .github/"
+            elif [ "$CONFIRMED" = true ]; then
+              echo "::warning::Commits differ outside .github/; going on because same_source_confirmed was set"
+              echo "$outside" | head -20
+            else
+              echo "::error::The two builds come from different sources. Files that differ:"
+              echo "$outside" | head -20
+              exit 1
+            fi
           fi
       - name: Fetch the arm64 disk image
         uses: actions/download-artifact@v4
