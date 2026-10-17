@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Apply the Carriage night train UI to the supported Pullman release PAK.
-Payload adapted from the existing local installer (439ae3c, rail/sea only).
+Payload adapted from the existing local installer (439ae3c), railway only:
+the sea scene and its RAIL/SEA switch are left out (Nadar, 17 October 2026).
 """
 import gzip, hashlib, struct, zlib
 from pathlib import Path
@@ -9,9 +10,11 @@ class Stop(RuntimeError):
     pass
 
 
-TESTED_PAK_SHA256 = 'b08ba67b64413ec44a4416c67d095657efdf30e0aa8006051259e0c937a8dea4'
+# Pinned to the arm64 build of d0c628b, run 38823158923 (carriage_0.19.2.1_arm64-macos.dmg),
+# which is also the base of the universal merge.
+TESTED_PAK_SHA256 = 'bb71350ed3cd05dab893abebcb21753bb33d9b115708ed6b0418d2fe40330d74'
 
-TESTED_RESULT_SHA256 = '4ae3942b5ba8ae19b24adc0039eab0ceceb3d604411fa802fe76bf613d510f63'
+TESTED_RESULT_SHA256 = 'd122babbe600e16b4c68c4bfd2344a23a738f9c6ce94a5d569263829c42d885a'
 
 CSS_FROM, CSS_TO = '#carriagePanelling{', '`])'
 
@@ -19,9 +22,6 @@ HTML_FROM, HTML_TO = '<div id="carriagePanelling"', '${this.lazyRender_'
 
 CLOCK_TIMER = 'this.carriageClockTimer_=window.setInterval((()=>{this.carriageClocks_=carriageClocksNow()}),1e3);'
 
-SCENE_ANCHOR = 'const AppElementBase=HelpBubbleMixinLit(CrLitElement);'
-
-SCENE_JS = 'const CARRIAGE_SCENES=["rail","sea"];let carriageScene=(()=>{try{const s=localStorage.getItem("carriage.scene");return CARRIAGE_SCENES.includes(s)?s:"rail"}catch(e){return"rail"}})();function carriageSceneClick(e){const t=e.currentTarget;carriageScene=CARRIAGE_SCENES.includes(t.dataset.scene)?t.dataset.scene:"rail";try{localStorage.setItem("carriage.scene",carriageScene)}catch(err){}const host=t.getRootNode().host;if(host)host.requestUpdate()}'
 
 DONE_MARK = 'carriageTrain'
 
@@ -91,9 +91,9 @@ def count_once(js, anchors):
 
 def patch_new_tab_page(js):
     """The edit of ntp_night_train_patch.py at commit 439ae3c, with the
-    garden scene left out of the payload."""
+    garden and sea scenes left out of the payload."""
     anchors = (('stylesheet', CSS_FROM), ('markup', HTML_FROM),
-               ('clock timer', CLOCK_TIMER), ('element code', SCENE_ANCHOR))
+               ('clock timer', CLOCK_TIMER))
     count_once(js, anchors)
     for start, end, new, name in ((CSS_FROM, CSS_TO, CSS, 'stylesheet'),
                                   (HTML_FROM, HTML_TO, HTML, 'markup')):
@@ -105,7 +105,6 @@ def patch_new_tab_page(js):
         js = js[:i] + new + js[j:]
     count_once(js, anchors[2:])
     js = js.replace(CLOCK_TIMER, '', 1)
-    js = js.replace(SCENE_ANCHOR, SCENE_ANCHOR + SCENE_JS, 1)
     return js
 
 def build_new_pak(original):
@@ -190,7 +189,7 @@ CSS = r'''#carriagePanelling {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.5em;
-  margin-bottom: 14px;
+  margin-bottom: 44px;
   padding: 9px 26px 8px 34px;
 }
 
@@ -432,265 +431,26 @@ CSS = r'''#carriagePanelling {
 }
 
 .rail-scene,
-.sea-scene,
-.plate-rail,
-.plate-sea,
-.scene-sea .carriage-shutter {
+.plate-rail {
   display: none;
 }
 
-.scene-rail .rail-scene,
-.scene-sea .sea-scene {
+.scene-rail .rail-scene {
   display: block;
 }
 
-.scene-rail .plate-rail,
-.scene-sea .plate-sea {
+.scene-rail .plate-rail {
   display: inline;
 }
-
-#carriageSwitch {
-  background: linear-gradient(180deg, #6B5526, #3A2C12);
-  border-radius: 2px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5),
-              inset 0 1px 0 rgba(255, 232, 170, 0.3);
-  display: flex;
-  gap: 2px;
-  margin-bottom: 40px;
-  padding: 3px;
-}
-
-.carriage-way {
-  background: none;
-  border: 0;
-  border-radius: 1px;
-  color: rgba(236, 214, 160, 0.45);
-  cursor: pointer;
-  font-family: Copperplate, Futura, 'Avenir Next', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.3em;
-  padding: 5px 12px 4px 16px;
-}
-
-.carriage-way:hover {
-  color: rgba(246, 230, 186, 0.8);
-}
-
-.carriage-way:focus-visible {
-  outline: 1px solid #F0DCA0;
-  outline-offset: 1px;
-}
-
-.scene-rail .carriage-way.rail,
-.scene-sea .carriage-way.sea {
-  background: linear-gradient(180deg, #EBD597, #B08E3C);
-  color: #241007;
-  text-shadow: 0 1px 0 rgba(255, 244, 210, 0.55);
-}
-
-.scene-sea #carriageTrain {
-  animation: none;
-}
-
-.scene-sea .carriage-window {
-  background: radial-gradient(circle at 35% 30%, #EAD08A, #9C7A34 55%,
-                              #4E3A16);
-  border-radius: 50%;
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.6),
-              inset 0 -3px 6px rgba(0, 0, 0, 0.35);
-  height: 184px;
-  margin: 34px 0;
-  position: relative;
-}
-
-.scene-sea .carriage-glass {
-  border-radius: 50%;
-}
-
-.scene-sea .carriage-window::after {
-  background:
-      radial-gradient(circle at 50% 2.2%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px),
-      radial-gradient(circle at 83.8% 16.2%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px),
-      radial-gradient(circle at 97.8% 50%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px),
-      radial-gradient(circle at 83.8% 83.8%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px),
-      radial-gradient(circle at 50% 97.8%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px),
-      radial-gradient(circle at 16.2% 83.8%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px),
-      radial-gradient(circle at 2.2% 50%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px),
-      radial-gradient(circle at 16.2% 16.2%, #F6E3A8 0 1.4px, #6B5020 2.2px,
-                      transparent 2.7px);
-  border-radius: 50%;
-  content: '';
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
-}
-
-.sea-sky {
-  fill: url(#carriageSeaNight);
-}
-
-.swell-far-fill {
-  fill: #0B1530;
-}
-
-.swell-mid-fill {
-  fill: #08112A;
-}
-
-.swell-near-fill {
-  fill: #050C20;
-}
-
-.swell-fore-fill {
-  fill: #030817;
-}
-
-.swell-crest {
-  fill: none;
-  stroke: #4A5E92;
-  stroke-opacity: 0.5;
-  stroke-width: 0.6;
-}
-
-.swell-crest.near {
-  stroke-opacity: 0.6;
-  stroke-width: 0.8;
-}
-
-.moon-path ellipse {
-  fill: #FFF1C8;
-}
-
-.moon-path {
-  animation: carriage-glint 3.8s ease-in-out infinite alternate;
-}
-
-.deck {
-  fill: url(#carriageDeck);
-}
-
-.deck-iron {
-  fill: #17110A;
-}
-
-.deck-floor {
-  fill: #1F160D;
-}
-
-.deck-glint {
-  fill: #A07C40;
-  fill-opacity: 0.75;
-}
-
-.lifebuoy {
-  fill: none;
-  stroke: #D8D0BE;
-  stroke-width: 4.2;
-}
-
-.lifebuoy-bands {
-  fill: none;
-  stroke: #5A1F18;
-  stroke-dasharray: 7 8.7;
-  stroke-opacity: 0.85;
-  stroke-width: 4.2;
-}
-
-.sea-roll {
-  animation: carriage-roll-sea 11s ease-in-out infinite alternate;
-  transform-box: view-box;
-  transform-origin: 429px 170px;
-}
-
-.sea-bob {
-  animation: carriage-bob 7.5s ease-in-out infinite;
-}
-
-.swell-far {
-  animation: carriage-roll-far 140s linear infinite;
-  fill: url(#carriageSwellFar);
-}
-
-.swell-mid {
-  animation: carriage-roll-mid 70s linear infinite;
-  fill: url(#carriageSwellMid);
-}
-
-.swell-near {
-  animation: carriage-roll-near 32s linear infinite;
-  fill: url(#carriageSwellNear);
-}
-
-.swell-fore {
-  animation: carriage-roll-fore 16s linear infinite;
-  fill: url(#carriageSwellFore);
-}
-
-@keyframes carriage-roll-sea {
-  from { transform: rotate(-0.55deg); }
-  to { transform: rotate(0.55deg); }
-}
-
-@keyframes carriage-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(1.6px); }
-}
-
-@keyframes carriage-glint {
-  from { opacity: 0.7; }
-  to { opacity: 1; }
-}
-
-@keyframes carriage-roll-far {
-  to { transform: translateX(-420px); }
-}
-
-@keyframes carriage-roll-mid {
-  to { transform: translateX(-300px); }
-}
-
-@keyframes carriage-roll-near {
-  to { transform: translateX(-190px); }
-}
-
-@keyframes carriage-roll-fore {
-  to { transform: translateX(-130px); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sea-roll,
-  .sea-bob,
-  .moon-path,
-  .swell-far,
-  .swell-mid,
-  .swell-near,
-  .swell-fore {
-    animation: none;
-  }
-}'''
+'''
 
 HTML = r'''<div id="carriagePanelling" aria-hidden="true">
     <div class="carriage-brass-band top"></div>
     <div class="carriage-brass-band bottom"></div>
   </div>
-  <div id="carriageHall" class="scene-${carriageScene}">
+  <div id="carriageHall" class="scene-rail">
     <div id="carriagePlate" aria-hidden="true">
       <span class="plate-rail">CARRIAGE</span>
-      <span class="plate-sea">LE HAVRE &ndash; NEW YORK</span>
-    </div>
-    <div id="carriageSwitch">
-      <button class="carriage-way rail" data-scene="rail"
-          @click="${carriageSceneClick}">RAIL</button>
-      <button class="carriage-way sea" data-scene="sea"
-          @click="${carriageSceneClick}">SEA</button>
     </div>
     <svg id="carriageScenery" aria-hidden="true">
       <defs>
@@ -731,39 +491,6 @@ HTML = r'''<div id="carriagePanelling" aria-hidden="true">
             patternUnits="userSpaceOnUse">
           <path class="hedge" d="M0 216L13.5 208.3L24.7 209.3L35.1 218.4L48.2 216.9L62.1 209.5L69.2 211.9L78.0 209.4L87.3 218.8L99.1 209.1L108.6 210.7L118.3 209.6L128.2 219.8L140.6 216.6L149.2 215.7L162.1 206.9L170 216L170 236L0 236Z"></path>
         </pattern>
-        <linearGradient id="carriageSeaNight" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#03050C"></stop>
-          <stop offset=".40" stop-color="#070D1E"></stop>
-          <stop offset=".58" stop-color="#0E1833"></stop>
-          <stop offset=".64" stop-color="#1B2647"></stop>
-          <stop offset=".66" stop-color="#0C1530"></stop>
-          <stop offset="1" stop-color="#050A16"></stop>
-        </linearGradient>
-        <pattern id="carriageSwellFar" width="420" height="260"
-            patternUnits="userSpaceOnUse">
-          <path class="swell-far-fill" d="M0 151.5C52 150 105 153 157 151.6S262 150.2 315 151.8S395 152.3 420 151.5V260H0Z"></path>
-          <path class="swell-crest" d="M0 151.5C52 150 105 153 157 151.6S262 150.2 315 151.8S395 152.3 420 151.5"></path>
-        </pattern>
-        <pattern id="carriageSwellMid" width="300" height="260"
-            patternUnits="userSpaceOnUse">
-          <path class="swell-mid-fill" d="M0 166C40 162.5 80 169 120 166S200 162 240 166.5S285 167 300 166V260H0Z"></path>
-          <path class="swell-crest" d="M0 166C40 162.5 80 169 120 166S200 162 240 166.5S285 167 300 166"></path>
-        </pattern>
-        <pattern id="carriageSwellNear" width="190" height="260"
-            patternUnits="userSpaceOnUse">
-          <path class="swell-near-fill" d="M0 182C30 176 62 186 95 181S160 177 190 182V260H0Z"></path>
-          <path class="swell-crest near" d="M0 182C30 176 62 186 95 181S160 177 190 182"></path>
-        </pattern>
-        <pattern id="carriageSwellFore" width="130" height="260"
-            patternUnits="userSpaceOnUse">
-          <path class="swell-fore-fill" d="M0 199C22 194 44 203 65 199S108 195 130 199V260H0Z"></path>
-        </pattern>
-        <pattern id="carriageDeck" width="115" height="236"
-            patternUnits="userSpaceOnUse">
-          <path class="deck-floor" d="M0 229h115v7H0Z"></path>
-          <path class="deck-iron" d="M0 194h115v2.6H0ZM0 207h115v1.6H0ZM0 219h115v1.4H0ZM56 194h3v35h-3Z"></path>
-          <path class="deck-glint" d="M0 194h115v.6H0ZM0 229h115v.6H0Z"></path>
-        </pattern>
       </defs>
     </svg>
     <div id="carriageTrain" aria-hidden="true">
@@ -779,27 +506,6 @@ HTML = r'''<div id="carriagePanelling" aria-hidden="true">
             <rect class="scene-woods" x="-620" y="0" width="2160" height="236"></rect>
             <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
             <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
-          </svg>
-          <svg class="carriage-scene sea-scene" viewBox="0 62 168 168"
-              preserveAspectRatio="none">
-            <rect class="sea-sky" x="0" y="0" width="920" height="236"></rect>
-            <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
-            <circle class="moon-glow" cx="774" cy="96" r="44"></circle>
-            <circle class="moon" cx="774" cy="96" r="14"></circle>
-            <g class="sea-roll">
-              <g class="sea-bob">
-                <rect class="swell-far" x="-420" y="0" width="1760" height="260"></rect>
-                  <rect class="swell-mid" x="-300" y="0" width="1520" height="260"></rect>
-                <rect class="swell-near" x="-190" y="0" width="1300" height="260"></rect>
-                <rect class="swell-fore" x="-130" y="0" width="1180" height="260"></rect>
-              <g class="moon-path"><ellipse cx="774" cy="156" rx="5" ry="0.8" opacity="0.75"></ellipse><ellipse cx="774" cy="161" rx="8" ry="1" opacity="0.68"></ellipse><ellipse cx="774" cy="167" rx="11" ry="1.2" opacity="0.6"></ellipse><ellipse cx="774" cy="174" rx="14" ry="1.4" opacity="0.52"></ellipse><ellipse cx="774" cy="182" rx="17" ry="1.6" opacity="0.45"></ellipse><ellipse cx="774" cy="190" rx="21" ry="1.8" opacity="0.38"></ellipse></g>
-              </g>
-            </g>
-            <rect class="deck" x="0" y="0" width="920" height="236"></rect>
-            <circle class="lifebuoy" cx="300" cy="206" r="10"></circle>
-            <circle class="lifebuoy-bands" cx="300" cy="206" r="10"></circle>
-            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
-            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
           </svg>
           <div class="carriage-shutter"
               style="--drop: 34%; --tilt: -0.95deg; --rattle: -0.15s">
@@ -822,27 +528,6 @@ HTML = r'''<div id="carriagePanelling" aria-hidden="true">
             <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
             <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
           </svg>
-          <svg class="carriage-scene sea-scene" viewBox="230 62 168 168"
-              preserveAspectRatio="none">
-            <rect class="sea-sky" x="0" y="0" width="920" height="236"></rect>
-            <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
-            <circle class="moon-glow" cx="774" cy="96" r="44"></circle>
-            <circle class="moon" cx="774" cy="96" r="14"></circle>
-            <g class="sea-roll">
-              <g class="sea-bob">
-                <rect class="swell-far" x="-420" y="0" width="1760" height="260"></rect>
-                  <rect class="swell-mid" x="-300" y="0" width="1520" height="260"></rect>
-                <rect class="swell-near" x="-190" y="0" width="1300" height="260"></rect>
-                <rect class="swell-fore" x="-130" y="0" width="1180" height="260"></rect>
-              <g class="moon-path"><ellipse cx="774" cy="156" rx="5" ry="0.8" opacity="0.75"></ellipse><ellipse cx="774" cy="161" rx="8" ry="1" opacity="0.68"></ellipse><ellipse cx="774" cy="167" rx="11" ry="1.2" opacity="0.6"></ellipse><ellipse cx="774" cy="174" rx="14" ry="1.4" opacity="0.52"></ellipse><ellipse cx="774" cy="182" rx="17" ry="1.6" opacity="0.45"></ellipse><ellipse cx="774" cy="190" rx="21" ry="1.8" opacity="0.38"></ellipse></g>
-              </g>
-            </g>
-            <rect class="deck" x="0" y="0" width="920" height="236"></rect>
-            <circle class="lifebuoy" cx="300" cy="206" r="10"></circle>
-            <circle class="lifebuoy-bands" cx="300" cy="206" r="10"></circle>
-            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
-            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
-          </svg>
           <div class="carriage-shutter"
               style="--drop: 45%; --tilt: 0.9deg; --rattle: -0.8s">
             <div class="carriage-slats"></div>
@@ -864,27 +549,6 @@ HTML = r'''<div id="carriagePanelling" aria-hidden="true">
             <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
             <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
           </svg>
-          <svg class="carriage-scene sea-scene" viewBox="460 62 168 168"
-              preserveAspectRatio="none">
-            <rect class="sea-sky" x="0" y="0" width="920" height="236"></rect>
-            <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
-            <circle class="moon-glow" cx="774" cy="96" r="44"></circle>
-            <circle class="moon" cx="774" cy="96" r="14"></circle>
-            <g class="sea-roll">
-              <g class="sea-bob">
-                <rect class="swell-far" x="-420" y="0" width="1760" height="260"></rect>
-                  <rect class="swell-mid" x="-300" y="0" width="1520" height="260"></rect>
-                <rect class="swell-near" x="-190" y="0" width="1300" height="260"></rect>
-                <rect class="swell-fore" x="-130" y="0" width="1180" height="260"></rect>
-              <g class="moon-path"><ellipse cx="774" cy="156" rx="5" ry="0.8" opacity="0.75"></ellipse><ellipse cx="774" cy="161" rx="8" ry="1" opacity="0.68"></ellipse><ellipse cx="774" cy="167" rx="11" ry="1.2" opacity="0.6"></ellipse><ellipse cx="774" cy="174" rx="14" ry="1.4" opacity="0.52"></ellipse><ellipse cx="774" cy="182" rx="17" ry="1.6" opacity="0.45"></ellipse><ellipse cx="774" cy="190" rx="21" ry="1.8" opacity="0.38"></ellipse></g>
-              </g>
-            </g>
-            <rect class="deck" x="0" y="0" width="920" height="236"></rect>
-            <circle class="lifebuoy" cx="300" cy="206" r="10"></circle>
-            <circle class="lifebuoy-bands" cx="300" cy="206" r="10"></circle>
-            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
-            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
-          </svg>
           <div class="carriage-shutter"
               style="--drop: 58%; --tilt: 0.8deg; --rattle: -0.62s">
             <div class="carriage-slats"></div>
@@ -905,27 +569,6 @@ HTML = r'''<div id="carriagePanelling" aria-hidden="true">
             <rect class="scene-woods" x="-620" y="0" width="2160" height="236"></rect>
             <rect class="scene-poles" x="-340" y="0" width="1600" height="236"></rect>
             <rect class="scene-hedge" x="-170" y="0" width="1260" height="236"></rect>
-          </svg>
-          <svg class="carriage-scene sea-scene" viewBox="690 62 168 168"
-              preserveAspectRatio="none">
-            <rect class="sea-sky" x="0" y="0" width="920" height="236"></rect>
-            <rect class="scene-stars" x="0" y="0" width="920" height="236"></rect>
-            <circle class="moon-glow" cx="774" cy="96" r="44"></circle>
-            <circle class="moon" cx="774" cy="96" r="14"></circle>
-            <g class="sea-roll">
-              <g class="sea-bob">
-                <rect class="swell-far" x="-420" y="0" width="1760" height="260"></rect>
-                  <rect class="swell-mid" x="-300" y="0" width="1520" height="260"></rect>
-                <rect class="swell-near" x="-190" y="0" width="1300" height="260"></rect>
-                <rect class="swell-fore" x="-130" y="0" width="1180" height="260"></rect>
-              <g class="moon-path"><ellipse cx="774" cy="156" rx="5" ry="0.8" opacity="0.75"></ellipse><ellipse cx="774" cy="161" rx="8" ry="1" opacity="0.68"></ellipse><ellipse cx="774" cy="167" rx="11" ry="1.2" opacity="0.6"></ellipse><ellipse cx="774" cy="174" rx="14" ry="1.4" opacity="0.52"></ellipse><ellipse cx="774" cy="182" rx="17" ry="1.6" opacity="0.45"></ellipse><ellipse cx="774" cy="190" rx="21" ry="1.8" opacity="0.38"></ellipse></g>
-              </g>
-            </g>
-            <rect class="deck" x="0" y="0" width="920" height="236"></rect>
-            <circle class="lifebuoy" cx="300" cy="206" r="10"></circle>
-            <circle class="lifebuoy-bands" cx="300" cy="206" r="10"></circle>
-            <path class="deck-iron" d="M92 229L100 203H106L99 229ZM104 229L113 206H119L111 229Z"></path>
-            <path class="deck-iron" d="M556 229V196Q556 189 562 186Q571 181 578 185Q583 188 582 194Q579 190 573 190Q566 190 564 196V229Z"></path>
           </svg>
           <div class="carriage-reflection"></div>
         </div>

@@ -9,7 +9,7 @@ class NightTrainPatchTests(unittest.TestCase):
     def old_js(self):
         return (p.CSS_FROM + 'old stylesheet' + p.CSS_TO + '\n' +
                 p.HTML_FROM + '>old markup' + p.HTML_TO + '\n' +
-                p.CLOCK_TIMER + '\n' + p.SCENE_ANCHOR)
+                p.CLOCK_TIMER + '\n')
 
     def pack(self, js):
         # Three resources, including an unrelated compressed one and an alias.
@@ -30,13 +30,16 @@ class NightTrainPatchTests(unittest.TestCase):
         js = gzip.decompress(r2[1][1]).decode()
         self.assertEqual(js.count('class="carriage-window"'), 4)
         self.assertNotIn(p.CLOCK_TIMER, js)
-        self.assertIn(p.SCENE_JS, js)
+        self.assertEqual(js.count('class="carriage-scene rail-scene"'), 4)
+        for sea in ['sea-scene', 'data-scene', 'LE HAVRE', 'carriageSceneClick', 'carriageSwitch']:
+            self.assertNotIn(sea, js)
+        self.assertIn('class="scene-rail"', js)
         self.assertIn('prefers-reduced-motion', js)
         self.assertEqual(p.build_new_pak(patched), (None, 2))
 
     def test_missing_or_duplicate_anchors_fail(self):
         for js in [self.old_js().replace(p.CLOCK_TIMER, ''),
-                   self.old_js() + p.SCENE_ANCHOR]:
+                   self.old_js() + p.CLOCK_TIMER]:
             with self.subTest(js=js), self.assertRaises(p.Stop):
                 p.build_new_pak(self.pack(js))
 
