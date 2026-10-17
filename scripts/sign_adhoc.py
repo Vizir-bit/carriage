@@ -1,19 +1,34 @@
 #!/usr/bin/env python3
 """Sign a Carriage app ad hoc from the inside out, keeping each part's own
-entitlements and signing flags (such as the hardened runtime) as built.
+entitlements and signing flags as built, except the hardened runtime.
 
 usage: sign_adhoc.py APP [--compare-with ARCH=INPUT.app]...
 
 `codesign --deep` signs every nested helper like the outer app and drops the
 helpers' own entitlements. Here every piece of code is signed on its own,
-deepest first and the app last, with
---preserve-metadata=identifier,entitlements,flags,runtime. No certificate,
-Team ID or designated requirement is carried over: an ad-hoc signature has
-none.
+deepest first and the app last, with --preserve-metadata=identifier,entitlements
+and its other flags (hard, kill, restrict) set again. No certificate, Team ID
+or designated requirement is carried over: an ad-hoc signature has none.
+
+The hardened runtime (and explicit library validation) is not kept: under it,
+an ad-hoc program is refused every ad-hoc framework or library it loads,
+because ad-hoc code has no Team ID ("mapping process and mapped file
+(non-platform) have different Team IDs"; tested 17 October 2026), so Carriage
+would not start. Keeping it would mean adding the
+com.apple.security.cs.disable-library-validation entitlement, which the input
+did not have (tested: that does load). For test builds this script instead
+matches today's ad-hoc Carriage signing, which has no hardened runtime. This is
+a trade-off: the hardened runtime also has other protections, which these test
+builds do without. Distribution signing (Developer ID, one Team ID, C7) should
+decide runtime and entitlements per component.
+
+A universal file gets one set of flags for both architectures; if its two
+slices came with different kept flags, the comparison below reports it.
 
 With --compare-with (for a universal app: arm64=... and x86_64=...), every
 signed part must then have, for each architecture, the same entitlements and
-flags as the same part of the input built for that architecture.
+the same flags, apart from the hardened runtime, as the same part of the input
+built for that architecture.
 """
 import argparse
 import os
@@ -23,8 +38,10 @@ import subprocess
 import sys
 
 BUNDLE_SUFFIXES = ('.app', '.xpc', '.appex', '.bundle', '.plugin')
-PRESERVE = '--preserve-metadata=identifier,entitlements,flags,runtime'
+PRESERVE = '--preserve-metadata=identifier,entitlements'
 LINKER_SIGNED = 0x20000  # Set by the linker; any later signature drops it.
+HARDENED = 0x10000 | 0x2000  # runtime, library-validation: see above.
+KEPT_OPTIONS = {0x100: 'hard', 0x200: 'kill', 0x800: 'restrict'}
 MACHO_MAGICS = {b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe',
                 b'\xca\xfe\xba\xbe', b'\xca\xfe\xba\xbf'}
 
@@ -118,12 +135,21 @@ def main():
     inputs = dict(item.split('=', 1) for item in args.compare_with)
 
     parts = nested_code(app)
+    dropped = []
     for path in parts + [app]:
+        flags = max((signing_of(path, a)[0] or 0 for a in archs_of(path)), default=0)
+        options = [name for bit, name in KEPT_OPTIONS.items() if flags & bit]
+        if flags & HARDENED:
+            dropped.append(os.path.relpath(path, app))
         subprocess.run(['codesign', '--force', '--sign', '-', PRESERVE,
+                        *(['--options', ','.join(options)] if options else []),
                         '--timestamp=none', path], check=True,
                        stdout=subprocess.DEVNULL)
     subprocess.run(['codesign', '--verify', '--deep', '--strict', app], check=True)
     print(f'signed {len(parts)} nested parts and the app, inside out; signature valid')
+    for rel in dropped:
+        print(f'note: {rel}: hardened runtime not kept (an ad-hoc signature cannot '
+              f'load its ad-hoc libraries with it)')
 
     problems = []
     for path in parts + [app]:
@@ -134,6 +160,8 @@ def main():
                     f'entitlements {sorted(got[1]) or "none"}')
             if arch in inputs:
                 want = signing_of(os.path.join(inputs[arch], rel), arch)
+                if want[0] is not None:
+                    want = (want[0] & ~HARDENED, want[1])
                 if got != want:
                     problems.append(f'{line}; the {arch} input had flags '
                                     f'{hex(want[0]) if want[0] is not None else "?"}, '
@@ -145,7 +173,8 @@ def main():
             print('error:', line, file=sys.stderr)
         sys.exit(f'{len(problems)} part(s) lost or changed their entitlements or flags')
     if inputs:
-        print('every part kept the entitlements and flags of its input build')
+        print('every part kept the entitlements and flags of its input build'
+              + (' (apart from the hardened runtime, as noted)' if dropped else ''))
 
 
 if __name__ == '__main__':
