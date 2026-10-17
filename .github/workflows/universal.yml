@@ -1,0 +1,134 @@
+name: Carriage — universal app (Apple silicon and Intel)
+
+# Joins the arm64 and x86_64 disk images of one build run into a single
+# universal Carriage.app and disk image. Called at the end of build.yml; can
+# also be run by hand on a finished build run.
+
+on:
+  workflow_call:
+    inputs:
+      run_id: {required: true, type: string}
+      take_arm64: {required: false, type: string, default: ''}
+    outputs:
+      file_name:
+        value: ${{ jobs.universal.outputs.file_name }}
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build run holding both disk images (carriage_*_arm64-macos.dmg and carriage_*_x86_64-macos.dmg)
+        required: true
+      take_arm64:
+        description: 'Only if a merge stopped on a data file that may safely come from the arm64 build: its path pattern(s), separated by spaces'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  universal:
+    name: Merge into a universal app
+    runs-on: macos-latest
+    outputs:
+      file_name: ${{ steps.merge.outputs.file_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch the arm64 and x86_64 disk images
+        uses: actions/download-artifact@v4
+        with:
+          pattern: carriage_*-macos.dmg
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dl
+          merge-multiple: true
+      - name: Merge, sign and check
+        id: merge
+        env:
+          TAKE_ARM64: ${{ inputs.take_arm64 }}
+          RUN_ID: ${{ inputs.run_id }}
+          HAS_CERTIFICATE: ${{ secrets.PROD_MACOS_CERTIFICATE != '' }}
+        run: |
+          set -euxo pipefail
+          find dl -type f
+          arm=$(find dl -name 'carriage_*_arm64-macos.dmg' | head -1)
+          x86=$(find dl -name 'carriage_*_x86_64-macos.dmg' | head -1)
+          if [ -z "$arm" ] || [ -z "$x86" ]; then
+            echo "::error::Run $RUN_ID does not hold both disk images"; exit 1
+          fi
+          for pair in "arm64:$arm" "x86_64:$x86"; do
+            cpu=${pair%%:*}; dmg=${pair#*:}
+            mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg"
+            mkdir -p "in/$cpu"; ditto "$mnt/Carriage.app" "in/$cpu/Carriage.app"; hdiutil detach "$mnt"
+          done
+          read -ra globs <<< "$TAKE_ARM64"
+          extra=(); for g in ${globs[@]+"${globs[@]}"}; do extra+=(--take-arm64 "$g"); done
+          python3 scripts/make_universal.py in/arm64/Carriage.app in/x86_64/Carriage.app \
+            out/Carriage.app ${extra[@]+"${extra[@]}"}
+          if [ "$HAS_CERTIFICATE" = true ]; then
+            echo "::warning::The universal app is signed ad hoc; Developer ID signing and notarisation of the merged app are not set up yet (C7)"
+          fi
+          codesign --force --deep --sign - out/Carriage.app
+          codesign --verify --deep --strict --verbose=2 out/Carriage.app
+          lipo -archs out/Carriage.app/Contents/MacOS/Carriage | tee archs.txt
+          grep -q arm64 archs.txt && grep -q x86_64 archs.txt
+          name=$(basename "$arm"); name=${name/_arm64-macos.dmg/_universal-macos.dmg}
+          echo "file_name=$name" >> "$GITHUB_OUTPUT"
+      - name: Open the new tab page natively and under Rosetta
+        run: |
+          set -eux
+          app=out/Carriage.app/Contents/MacOS/Carriage
+          flags=(--headless=new --no-first-run --use-mock-keychain --disable-crash-reporter
+                 --virtual-time-budget=5000 --window-size=1440,900)
+          "$app" "${flags[@]}" --user-data-dir="$RUNNER_TEMP/p-arm64" \
+            --screenshot="$PWD/ntp-universal-arm64.png" chrome://new-tab-page/
+          test -s ntp-universal-arm64.png
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            arch -x86_64 "$app" "${flags[@]}" --user-data-dir="$RUNNER_TEMP/p-x86_64" \
+              --screenshot="$PWD/ntp-universal-x86_64.png" chrome://new-tab-page/
+            test -s ntp-universal-x86_64.png
+          else
+            echo "::warning::No Rosetta on this runner: the Intel half was merged and signed but not opened"
+          fi
+      - name: Pack the disk image
+        env:
+          NAME: ${{ steps.merge.outputs.file_name }}
+        run: |
+          set -euxo pipefail
+          # Same contents as sign_and_package_app.sh: the app, a link to
+          # Applications, Carriage's background, window layout and volume icon.
+          stage=$(mktemp -d)/Carriage
+          mkdir -p "$stage/.background"
+          ditto out/Carriage.app "$stage/Carriage.app"
+          ln -s /Applications "$stage/Applications"
+          cp resources/dmg_background.png "$stage/.background/dmg_background.png"
+          cp resources/dmg_dsstore "$stage/.DS_Store"
+          cp out/Carriage.app/Contents/Resources/app.icns "$stage/.VolumeIcon.icns"
+          hdiutil create -volname Carriage -srcfolder "$stage" -format UDRW -ov rw.dmg
+          mnt=$(mktemp -d); hdiutil attach -nobrowse -mountpoint "$mnt" rw.dmg
+          SetFile -a C "$mnt" || echo "::warning::Volume icon not set"
+          hdiutil detach "$mnt"
+          mkdir -p release_asset
+          hdiutil convert rw.dmg -format ULMO -o "release_asset/$NAME"
+          f="release_asset/$NAME"
+          printf 'Hashes for the disk image `%s`: \n' "$NAME" > "$NAME.hashes.md"
+          printf '\n```\nmd5: %s\nsha1: %s\nsha256: %s\n```\n' "$(md5 -q "$f")" \
+            "$(shasum -a 1 "$f" | cut -d' ' -f1)" "$(shasum -a 256 "$f" | cut -d' ' -f1)" \
+            >> "$NAME.hashes.md"
+          cat "$NAME.hashes.md"
+      - name: Upload the universal disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.merge.outputs.file_name }}
+          path: |
+            ./release_asset/${{ steps.merge.outputs.file_name }}
+            ./${{ steps.merge.outputs.file_name }}.hashes.md
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ntp-universal-screenshots
+          path: ntp-universal-*.png
+          if-no-files-found: warn

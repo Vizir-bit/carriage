@@ -4,8 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       from_run_id:
-        description: Run whose last checkpoint (github_build_artifact_arm64) to continue from
+        description: "Run whose last checkpoint (github_build_artifact_<arch>) to continue from. Only resources and the new-tab sources are refreshed: patches added since that checkpoint are NOT applied"
         required: true
+      arch:
+        description: Architecture of that checkpoint
+        type: choice
+        options: [arm64, x86_64]
+        default: arm64
 
 permissions:
   contents: read
@@ -16,7 +21,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
       from_run_id: ${{ inputs.from_run_id }}
@@ -27,7 +32,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -37,7 +42,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -47,7 +52,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -57,7 +62,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -67,7 +72,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -77,7 +82,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -87,7 +92,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -97,7 +102,7 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true
 
@@ -107,6 +112,6 @@ jobs:
     uses: ./.github/workflows/build-phase.yml
     secrets: inherit
     with:
-      arch: arm64
+      arch: ${{ inputs.arch }}
       os: macos-latest
       resume: true

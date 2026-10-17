@@ -5,7 +5,8 @@ _main_repo="$_root_dir/helium-chromium"
 
 _helium_version=$(python3 "$_main_repo/utils/helium_version.py" --tree "$_main_repo" --platform-tree "$_root_dir" --print)
 
-_base_hash_name="helium_${_helium_version}"
+_base_hash_name="carriage_${_helium_version}"
+_universal_hash_name="${_base_hash_name}_universal-macos.dmg.hashes.md"
 _x64_hash_name="${_base_hash_name}_x86_64-macos.dmg.hashes.md"
 _arm64_hash_name="${_base_hash_name}_arm64-macos.dmg.hashes.md"
 
@@ -24,6 +25,8 @@ if [ -f $_root_dir/announcements.md ]; then
     printf '### Release Assets Info %s\n\n' | tee -a ./github_release_note.md
 fi
 
+cat $_universal_hash_name | tee -a ./github_release_note.md
+printf '\n' | tee -a ./github_release_note.md
 cat $_arm64_hash_name | tee -a ./github_release_note.md
 printf '\n' | tee -a ./github_release_note.md
 cat $_x64_hash_name | tee -a ./github_release_note.md

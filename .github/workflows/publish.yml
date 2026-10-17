@@ -33,12 +33,18 @@ jobs:
         run: |
           set -eux
           find dl -type f
-          dmg=$(find dl -name 'carriage_*.dmg' | head -1)
-          hashes=$(find dl -name '*.hashes.md' | head -1)
+          # The universal app when the run made one, else the Apple silicon one.
+          dmg=$(find dl -name 'carriage_*_universal-macos.dmg' | head -1)
+          macs="Apple silicon and Intel Macs"; kind="universal"
+          if [ -z "$dmg" ]; then
+            dmg=$(find dl -name 'carriage_*_arm64-macos.dmg' | head -1)
+            macs="Apple silicon Macs"; kind="Apple silicon"
+          fi
+          hashes=$(find dl -name "$(basename "$dmg").hashes.md" | head -1)
           sha=$(sha256sum "$dmg" | cut -d' ' -f1)
           head_sha=$(gh api repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }} --jq .head_sha)
-          sed "s/__SHA256__/$sha/" docs/release-notes-test.md > notes.md
+          sed -e "s/__SHA256__/$sha/" -e "s/__MACS__/$macs/" docs/release-notes-test.md > notes.md
           gh release create "${{ inputs.tag }}" "$dmg" "$hashes" \
             --target "$head_sha" --prerelease \
-            --title "Carriage ${{ inputs.tag }} — test build (Apple Silicon)" \
+            --title "Carriage ${{ inputs.tag }} — test build ($kind)" \
             --notes-file notes.md

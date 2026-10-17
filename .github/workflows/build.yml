@@ -21,8 +21,10 @@ jobs:
     name: Build macOS binaries of Helium
     strategy:
       matrix:
-        arch: [arm64]
-      fail-fast: true
+        # Carriage: both kinds of Mac, joined into one universal app below.
+        arch: [arm64, x86_64]
+      # One architecture failing must not cancel the other's day-long build.
+      fail-fast: false
       max-parallel: 2
     uses: ./.github/workflows/building.yml
     secrets: inherit
@@ -30,8 +32,15 @@ jobs:
       arch: ${{ matrix.arch }}
       os: ${{ inputs.runner }}
 
-  release:
+  universal:
     needs: build
+    uses: ./.github/workflows/universal.yml
+    secrets: inherit
+    with:
+      run_id: ${{ github.run_id }}
+
+  release:
+    needs: [build, universal]
     name: Release macOS binaries of Helium
     runs-on: ${{ inputs.runner }}
     if: ${{ inputs.do-release }}
@@ -62,6 +71,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ steps.bake.outputs.arm64_file_name }}
+      - name: Get universal binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.universal.outputs.file_name }}
       - name: Generate release note
         run: ./github_generate_release_note.sh | tee -a github_actions_release.log
       - name: List deltas
@@ -79,6 +92,7 @@ jobs:
           draft: false
           prerelease: true
           files: |
+            ./release_asset/${{ needs.universal.outputs.file_name }}
             ./release_asset/${{ steps.bake.outputs.arm64_file_name }}
             ./release_asset/${{ steps.bake.outputs.x64_file_name }}
             ${{ steps.list_deltas.outputs.deltas }}

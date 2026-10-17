@@ -1,4 +1,4 @@
-Carriage version 3 — Pullman carriage, skies that follow the sun. Test build for Apple Silicon Macs (macOS 12 or later). The Orient-Express release is this same build under its own name.
+Carriage version 3 — Pullman carriage, skies that follow the sun. Test build for __MACS__ (macOS 12 or later). The Orient-Express release is this same build under its own name.
 
 What's in it
 - New tab page styled as a 1930s Pullman carriage: mahogany panelling, brass bands and nameplate, and four clocks (London, Paris, Roma, Moscow) in arched windows
