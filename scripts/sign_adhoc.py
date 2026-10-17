@@ -158,6 +158,10 @@ def main():
     app = args.app.rstrip('/')
     inputs = dict(item.split('=', 1) for item in args.compare_with)
 
+    # Extended attributes (Finder information, quarantine) on files copied out
+    # of a disk image make codesign refuse with "resource fork, Finder
+    # information, or similar detritus not allowed"; the build clears them too.
+    subprocess.run(['xattr', '-cr', app], check=True)
     parts = nested_code(app)
     teams = sorted({f'{os.path.relpath(p, app)} ({t})' for p in parts + [app]
                     if (t := team_of(p))})
