@@ -1,0 +1,22 @@
+name: Carriage — Intel companion for universal build
+
+# Compile the same browser sources as the installed d0c628b Apple-silicon build.
+# This workflow changes only build orchestration; it publishes no release.
+on:
+  push:
+    branches: [codex/universal-companion-20261017]
+    paths: [.github/workflows/intel-companion.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  intel:
+    name: Build the Intel slice
+    uses: ./.github/workflows/building.yml
+    secrets: inherit
+    with:
+      arch: x86_64
+      os: macos-latest
