@@ -11,6 +11,7 @@ on:
       run_id: {required: true, type: string}
       x86_64_run_id: {required: false, type: string, default: ''}
       same_source_confirmed: {required: false, type: boolean, default: false}
+      companion_workflows: {required: false, type: string, default: intel-companion.yml}
       take_arm64: {required: false, type: string, default: ''}
     outputs:
       file_name:
@@ -35,6 +36,10 @@ on:
         type: boolean
         required: false
         default: false
+      companion_workflows:
+        description: 'Workflow files (names in .github/workflows, separated by spaces) that one run may add without counting as a different source; each was reviewed to only start the shared build'
+        required: false
+        default: intel-companion.yml
       take_arm64:
         description: 'Only if a merge stopped on a data file that may safely come from the arm64 build: its path pattern(s), separated by spaces'
         required: false
@@ -63,24 +68,32 @@ jobs:
           ARM_RUN: ${{ inputs.run_id }}
           X86_RUN: ${{ inputs.x86_64_run_id || inputs.run_id }}
           CONFIRMED: ${{ inputs.same_source_confirmed }}
+          COMPANIONS: ${{ inputs.companion_workflows }}
         run: |
           set -euo pipefail
           arm_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARM_RUN" --jq .head_sha)
           x86_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$X86_RUN" --jq .head_sha)
           echo "arm64 from run $ARM_RUN at $arm_sha; x86_64 from run $X86_RUN at $x86_sha"
           if [ "$arm_sha" != "$x86_sha" ]; then
-            # Different commits are still one source if their only difference
-            # is a workflow file that one side adds (for example a companion
-            # build's own workflow). Anything else, including .github/scripts,
-            # .github/actions and the shared build workflows, is part of the
-            # build and makes them different sources.
+            # Different commits still count as one source when their only
+            # difference is a reviewed companion workflow (named in
+            # companion_workflows) that one side adds, as a separate Intel build
+            # does. Any other difference, including .github/scripts,
+            # .github/actions, other workflow files and any other file under
+            # .github/workflows, makes them different sources. The companion's
+            # own contents are printed below for review.
             git fetch --no-tags --depth=1 origin "$arm_sha" "$x86_sha"
             git cat-file -e "$arm_sha^{commit}" && git cat-file -e "$x86_sha^{commit}"
             git diff --name-status "$arm_sha" "$x86_sha" | tee differences.txt
-            other=$(awk -F'\t' '!(($1 == "A" || $1 == "D") && $2 ~ /^\.github\/workflows\// &&
-                                 $2 !~ /\/(building|build-phase|build)\.yml$/)' differences.txt)
+            other=$(awk -F'\t' -v names=" $COMPANIONS " '
+              !(($1 == "A" || $1 == "D") && $2 ~ /^\.github\/workflows\/[^\/]+\.ya?ml$/ &&
+                index(names, " " substr($2, 19) " ") > 0)' differences.txt)
             if [ -z "$other" ]; then
-              echo "Different commits, same source: the only difference is a workflow added on one side"
+              echo "Different commits, same source: the only difference is a reviewed companion workflow"
+              while IFS=$'\t' read -r st path; do
+                side=$x86_sha; [ "$st" = D ] && side=$arm_sha
+                echo "----- $path (in ${side:0:7}) -----"; git show "$side:$path"
+              done < differences.txt
             elif [ "$CONFIRMED" = true ]; then
               echo "::warning::The commits differ in build inputs; going on because same_source_confirmed was set"
               echo "$other" | head -20
