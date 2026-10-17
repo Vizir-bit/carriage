@@ -14,7 +14,7 @@ class Stop(RuntimeError):
 # which is also the base of the universal merge.
 TESTED_PAK_SHA256 = 'bb71350ed3cd05dab893abebcb21753bb33d9b115708ed6b0418d2fe40330d74'
 
-TESTED_RESULT_SHA256 = 'd122babbe600e16b4c68c4bfd2344a23a738f9c6ce94a5d569263829c42d885a'
+TESTED_RESULT_SHA256 = 'acedb44e543c02cc1849f1fc5b3e511e0b1b41f4bda43e5215b236cfe575f1cb'
 
 CSS_FROM, CSS_TO = '#carriagePanelling{', '`])'
 
@@ -22,6 +22,15 @@ HTML_FROM, HTML_TO = '<div id="carriagePanelling"', '${this.lazyRender_'
 
 CLOCK_TIMER = 'this.carriageClockTimer_=window.setInterval((()=>{this.carriageClocks_=carriageClocksNow()}),1e3);'
 
+
+# The weather plaques' requests (Open-Meteo) stay in builds of d0c628b even
+# though the night train shows no weather; without these two calls the page
+# makes no request at all. Removed when present, each exactly once.
+WEATHER_CALLS = (
+    ('first weather request', 'super.connectedCallback();carriageWeatherRefresh();',
+     'super.connectedCallback();'),
+    ('weather timer', 'this.carriageWeatherTimer_=window.setInterval((()=>carriageWeatherRefresh()),60*1e3);', ''),
+)
 
 DONE_MARK = 'carriageTrain'
 
@@ -105,6 +114,12 @@ def patch_new_tab_page(js):
         js = js[:i] + new + js[j:]
     count_once(js, anchors[2:])
     js = js.replace(CLOCK_TIMER, '', 1)
+    for name, call, keep in WEATHER_CALLS:
+        found = js.count(call)
+        if found > 1:
+            raise Stop('The %s occurs %d times instead of once. '
+                       'Nothing has been changed.' % (name, found))
+        js = js.replace(call, keep)
     return js
 
 def build_new_pak(original):

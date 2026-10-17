@@ -6,10 +6,13 @@ import ntp_night_train_patch as p
 
 
 class NightTrainPatchTests(unittest.TestCase):
-    def old_js(self):
-        return (p.CSS_FROM + 'old stylesheet' + p.CSS_TO + '\n' +
-                p.HTML_FROM + '>old markup' + p.HTML_TO + '\n' +
-                p.CLOCK_TIMER + '\n')
+    def old_js(self, weather=False):
+        js = (p.CSS_FROM + 'old stylesheet' + p.CSS_TO + '\n' +
+              p.HTML_FROM + '>old markup' + p.HTML_TO + '\n' +
+              p.CLOCK_TIMER + '\n')
+        if weather:
+            js += ''.join(call for _, call, _ in p.WEATHER_CALLS)
+        return js
 
     def pack(self, js):
         # Three resources, including an unrelated compressed one and an alias.
@@ -39,9 +42,16 @@ class NightTrainPatchTests(unittest.TestCase):
 
     def test_missing_or_duplicate_anchors_fail(self):
         for js in [self.old_js().replace(p.CLOCK_TIMER, ''),
-                   self.old_js() + p.CLOCK_TIMER]:
+                   self.old_js() + p.CLOCK_TIMER,
+                   self.old_js(weather=True) + p.WEATHER_CALLS[1][1]]:
             with self.subTest(js=js), self.assertRaises(p.Stop):
                 p.build_new_pak(self.pack(js))
+
+    def test_weather_requests_removed(self):
+        patched, _ = p.build_new_pak(self.pack(self.old_js(weather=True)))
+        js = gzip.decompress(p.read_pak(patched)[1][1][1]).decode()
+        self.assertNotIn('carriageWeatherRefresh', js)
+        self.assertIn('super.connectedCallback();', js)
 
     def test_truncated_pak_fails(self):
         original = self.pack(self.old_js())
