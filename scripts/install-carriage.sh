@@ -6,10 +6,20 @@
 #   install-carriage.sh [TAG]       a published release (waits until it is out)
 #   install-carriage.sh --run ID    the disk image of a finished Actions run, for
 #                                   example a universal.yml merge (needs gh)
+#   add --night-train               to give it the railway night-train start
+#                                   page (ntp_night_train_patch.py), signed again
 #
 # Either way it takes the universal app (Apple silicon and Intel) when there is
-# one, else the Apple silicon one.
+# one, else the Apple silicon one. It never quits a Carriage that is open: it
+# asks you to quit it and installs then.
 set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+NIGHT_TRAIN=false
+args=()
+for a in "$@"; do
+  if [ "$a" = --night-train ]; then NIGHT_TRAIN=true; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
 
 REPO="Vizir-bit/carriage"
 ARCHS="universal arm64"
@@ -66,11 +76,23 @@ if [ -z "$want" ] || [ "$want" != "$got" ]; then
 fi
 echo "Checksum OK ($got)."
 
-osascript -e 'tell application "Carriage" to quit' >/dev/null 2>&1 || true
-sleep 2
-
 mnt="$(mktemp -d /tmp/carriage.XXXXXX)"
 hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$tmp/$DMG" >/dev/null
+ditto "$mnt/Carriage.app" "$tmp/Carriage.app"
+hdiutil detach "$mnt" >/dev/null || true
+if $NIGHT_TRAIN; then
+  echo "Giving it the railway night-train start page…"
+  python3 "$here/ntp_night_train_patch.py" \
+    "$tmp/Carriage.app/Contents/Frameworks/Carriage Framework.framework/Versions/Current/Resources/resources.pak"
+  python3 "$here/sign_adhoc.py" "$tmp/Carriage.app"
+fi
+codesign --verify --deep --strict "$tmp/Carriage.app"
+
+if pgrep -f "/Applications/Carriage.app/Contents/MacOS/Carriage" >/dev/null 2>&1; then
+  echo "Carriage is open: quit it (Carriage > Quit) and the installation will go on."
+  osascript -e 'display notification "Quit Carriage to finish installing the new one." with title "Carriage"' >/dev/null 2>&1 || true
+  while pgrep -f "/Applications/Carriage.app/Contents/MacOS/Carriage" >/dev/null 2>&1; do sleep 5; done
+fi
 
 if [ -d /Applications/Carriage.app ]; then
   echo "Moving the previous Carriage to the Trash…"
@@ -80,9 +102,8 @@ if [ -d /Applications/Carriage.app ]; then
 fi
 
 echo "Installing into /Applications…"
-ditto "$mnt/Carriage.app" /Applications/Carriage.app 2>/dev/null \
-  || sudo ditto "$mnt/Carriage.app" /Applications/Carriage.app
-hdiutil detach "$mnt" >/dev/null || true
+ditto "$tmp/Carriage.app" /Applications/Carriage.app 2>/dev/null \
+  || sudo ditto "$tmp/Carriage.app" /Applications/Carriage.app
 xattr -dr com.apple.quarantine /Applications/Carriage.app 2>/dev/null \
   || sudo xattr -dr com.apple.quarantine /Applications/Carriage.app 2>/dev/null || true
 rm -rf "$tmp"

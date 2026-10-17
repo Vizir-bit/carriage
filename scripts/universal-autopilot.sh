@@ -62,14 +62,9 @@ if ! gh run watch "$run" --repo "$REPO" --exit-status --interval 60 >/dev/null; 
 fi
 log "Merge finished: universal Carriage built in run $run."
 
-# 3. Install, without quitting a Carriage that is in use.
-if pgrep -f "/Applications/Carriage.app/Contents/MacOS/Carriage" >/dev/null 2>&1; then
-  log "Carriage is open: waiting for you to quit it before installing."
-  notify "Universal Carriage is ready. Quit Carriage and it will be installed."
-  while pgrep -f "/Applications/Carriage.app/Contents/MacOS/Carriage" >/dev/null 2>&1; do
-    sleep 60
-  done
-fi
-bash "$here/install-carriage.sh" --run "$run"
+# 3. Install, with the railway night-train page (as the Carriage it replaces),
+# without quitting a Carriage that is in use: the installer waits for you.
+notify "Universal Carriage is ready; it installs when Carriage is closed."
+bash "$here/install-carriage.sh" --run "$run" --night-train
 log "Done: universal Carriage from run $run is installed."
 notify "Universal Carriage is installed."
