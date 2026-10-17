@@ -31,7 +31,7 @@ on:
         required: false
         default: ''
       same_source_confirmed:
-        description: 'Only if the check refuses two runs whose commits differ outside .github/: I have checked that both builds come from the same Carriage source'
+        description: 'Only if the check refuses two runs whose commits differ in more than an added workflow: I have checked that both builds come from the same Carriage source'
         type: boolean
         required: false
         default: false
@@ -48,7 +48,9 @@ jobs:
   universal:
     name: Merge into a universal app
     runs-on: macos-latest
-    if: ${{ github.event_name != 'push' }}
+    # Skip the registration push only: a run started by a caller that was
+    # itself triggered by a push still has run_id, and runs.
+    if: ${{ github.event_name != 'push' || inputs.run_id != '' }}
     outputs:
       file_name: ${{ steps.merge.outputs.file_name }}
     steps:
@@ -67,18 +69,24 @@ jobs:
           x86_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$X86_RUN" --jq .head_sha)
           echo "arm64 from run $ARM_RUN at $arm_sha; x86_64 from run $X86_RUN at $x86_sha"
           if [ "$arm_sha" != "$x86_sha" ]; then
-            # Different commits are still one source if they differ only in
-            # workflows (for example a companion build that adds one).
+            # Different commits are still one source if their only difference
+            # is a workflow file that one side adds (for example a companion
+            # build's own workflow). Anything else, including .github/scripts,
+            # .github/actions and the shared build workflows, is part of the
+            # build and makes them different sources.
             git fetch --no-tags --depth=1 origin "$arm_sha" "$x86_sha"
-            outside=$(git diff --name-only "$arm_sha" "$x86_sha" -- . ':(exclude).github')
-            if [ -z "$outside" ]; then
-              echo "Different commits, same source: they differ only under .github/"
+            git cat-file -e "$arm_sha^{commit}" && git cat-file -e "$x86_sha^{commit}"
+            git diff --name-status "$arm_sha" "$x86_sha" | tee differences.txt
+            other=$(awk -F'\t' '!(($1 == "A" || $1 == "D") && $2 ~ /^\.github\/workflows\// &&
+                                 $2 !~ /\/(building|build-phase|build)\.yml$/)' differences.txt)
+            if [ -z "$other" ]; then
+              echo "Different commits, same source: the only difference is a workflow added on one side"
             elif [ "$CONFIRMED" = true ]; then
-              echo "::warning::Commits differ outside .github/; going on because same_source_confirmed was set"
-              echo "$outside" | head -20
+              echo "::warning::The commits differ in build inputs; going on because same_source_confirmed was set"
+              echo "$other" | head -20
             else
-              echo "::error::The two builds come from different sources. Files that differ:"
-              echo "$outside" | head -20
+              echo "::error::The two builds come from different sources. Differences that affect the build:"
+              echo "$other" | head -20
               exit 1
             fi
           fi
