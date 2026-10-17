@@ -1,30 +1,58 @@
 #!/bin/bash
-# Installs a Carriage release on this Mac: waits until it is published,
-# downloads it, checks its SHA-256, replaces any older Carriage in
-# /Applications (the old one goes to the Trash) and opens it.
+# Installs Carriage on this Mac: downloads its disk image, checks its SHA-256,
+# replaces any older Carriage in /Applications (the old one goes to the Trash,
+# the profile stays where it is) and opens it.
+#
+#   install-carriage.sh [TAG]       a published release (waits until it is out)
+#   install-carriage.sh --run ID    the disk image of a finished Actions run, for
+#                                   example a universal.yml merge (needs gh)
+#
+# Either way it takes the universal app (Apple silicon and Intel) when there is
+# one, else the Apple silicon one.
 set -euo pipefail
 
-TAG="${1:-v0.19.2.1-carriage.2}"
 REPO="Vizir-bit/carriage"
-DMG="carriage_0.19.2.1_arm64-macos.dmg"
-BASE="https://github.com/$REPO/releases/download/$TAG"
-
-echo "Carriage installer — release $TAG"
-# Keep the Mac awake while this window waits.
-caffeinate -i -w $$ &
-
-if ! curl -fsIL "$BASE/$DMG" >/dev/null 2>&1; then
-  echo "Waiting for $TAG to be published (checking every 10 minutes; leave this window open)."
-  until curl -fsIL "$BASE/$DMG" >/dev/null 2>&1; do
-    printf '.'; sleep 600
-  done
-  echo
-fi
-
+ARCHS="universal arm64"
+name() { echo "carriage_0.19.2.1_$1-macos.dmg"; }
 tmp="$(mktemp -d)"
-echo "Downloading…"
-curl -fL --progress-bar -o "$tmp/$DMG" "$BASE/$DMG"
-curl -fsL -o "$tmp/hashes.md" "$BASE/$DMG.hashes.md"
+
+if [ "${1:-}" = --run ]; then
+  RUN="${2:?usage: install-carriage.sh --run RUN_ID}"
+  echo "Carriage installer — Actions run $RUN"
+  DMG=""
+  for arch in $ARCHS; do
+    if gh run download "$RUN" --repo "$REPO" -n "$(name "$arch")" -D "$tmp/artifact" >/dev/null 2>&1; then
+      DMG="$(name "$arch")"; break
+    fi
+  done
+  if [ -z "$DMG" ]; then
+    echo "Run $RUN holds no Carriage disk image (has it finished successfully?)."; exit 1
+  fi
+  mv "$tmp/artifact/release_asset/$DMG" "$tmp/$DMG"
+  mv "$tmp/artifact/$DMG.hashes.md" "$tmp/hashes.md"
+  FROM="run $RUN"
+else
+  TAG="${1:-v0.19.2.1-carriage.2}"
+  BASE="https://github.com/$REPO/releases/download/$TAG"
+  echo "Carriage installer — release $TAG"
+  # Keep the Mac awake while this window waits.
+  caffeinate -i -w $$ &
+  pick() {
+    for arch in $ARCHS; do
+      if curl -fsIL "$BASE/$(name "$arch")" >/dev/null 2>&1; then DMG="$(name "$arch")"; return 0; fi
+    done
+    return 1
+  }
+  if ! pick; then
+    echo "Waiting for $TAG to be published (checking every 10 minutes; leave this window open)."
+    until pick; do printf '.'; sleep 600; done
+    echo
+  fi
+  echo "Downloading $DMG…"
+  curl -fL --progress-bar -o "$tmp/$DMG" "$BASE/$DMG"
+  curl -fsL -o "$tmp/hashes.md" "$BASE/$DMG.hashes.md"
+  FROM="release $TAG"
+fi
 want="$(grep -o 'sha256: [0-9a-f]*' "$tmp/hashes.md" | awk '{print $2}')"
 got="$(shasum -a 256 "$tmp/$DMG" | awk '{print $1}')"
 if [ -z "$want" ] || [ "$want" != "$got" ]; then
@@ -55,4 +83,4 @@ rm -rf "$tmp"
 
 echo "Opening Carriage…"
 open /Applications/Carriage.app
-echo "Done. Carriage $TAG is installed."
+echo "Done. Carriage from $FROM ($DMG) is installed."
