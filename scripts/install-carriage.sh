@@ -18,6 +18,12 @@ tmp="$(mktemp -d)"
 
 if [ "${1:-}" = --run ]; then
   RUN="${2:?usage: install-carriage.sh --run RUN_ID}"
+  case "$RUN" in
+    *[!0-9]*)
+      echo "\"$RUN\" is not a run number. Use the number of a universal.yml run that finished"
+      echo "with a tick (✓); this lists them:  gh run list --workflow=universal.yml"
+      exit 1;;
+  esac
   echo "Carriage installer — Actions run $RUN"
   DMG=""
   for arch in $ARCHS; do
