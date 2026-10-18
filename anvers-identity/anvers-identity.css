@@ -12,7 +12,7 @@
   --anvers-red: #c0392b;
   --anvers-yellow: #e0a817;
   --anvers-blue: #1f4e99;
-  --anvers-mark-size: clamp(64px, 18vmin, 160px);
+  --anvers-mark-size: clamp(96px, 24vmin, 160px);
   --anvers-wordmark-font: "Futura", "Futura PT", "Century Gothic", "Avenir Next", system-ui, sans-serif;
 
   display: inline-flex;
@@ -38,7 +38,9 @@
 
 .anvers-identity__wordmark {
   font-family: var(--anvers-wordmark-font);
-  font-size: calc(var(--anvers-mark-size) * 0.16);
+  /* In proportion to the mark, but never smaller than the reader's own
+     text size, so it follows zoom and the browser's font setting. */
+  font-size: max(1rem, calc(var(--anvers-mark-size) * 0.16));
   font-weight: 500;
   line-height: 1;
   letter-spacing: 0.18em;
@@ -52,7 +54,7 @@
   .anvers-identity {
     --anvers-red: #e2594b;
     --anvers-yellow: #ebb935;
-    --anvers-blue: #6b95dc;
+    --anvers-blue: #538ae6;
   }
 }
 
@@ -68,7 +70,22 @@
 .anvers-identity[data-anvers-theme="dark"] {
   --anvers-red: #e2594b;
   --anvers-yellow: #ebb935;
-  --anvers-blue: #6b95dc;
+  --anvers-blue: #538ae6;
+}
+
+/* Asked for more contrast on a light page, yellow darkens to ochre (3.6:1
+   on paper); red and blue already pass, and every colour passes on dark. */
+@media (prefers-contrast: more) and (prefers-color-scheme: light) {
+  .anvers-identity {
+    --anvers-yellow: #a87700;
+  }
+}
+
+@media (prefers-contrast: more) {
+  [data-anvers-theme="light"] .anvers-identity,
+  .anvers-identity[data-anvers-theme="light"] {
+    --anvers-yellow: #a87700;
+  }
 }
 
 /* The optional motion: the primitive settles into its distortion, once. */

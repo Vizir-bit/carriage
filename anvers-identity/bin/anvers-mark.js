@@ -3,9 +3,12 @@
 // standard output. Without a seed it draws a new one and reports it on
 // standard error, so any mark can be drawn again.
 //
-//   node bin/anvers-mark.js [seed] [--shape circle|square|triangle]
-//     [--colour red|yellow|blue] [--scheme light|dark]
+//   node bin/anvers-mark.js [seed|random|daily] [--shape circle|square|triangle]
+//     [--colour red|yellow|blue] [--align centre|baseline] [--scheme light|dark]
 //     [--background none|paper|ink] [--size PIXELS] [--label TEXT] [--json]
+//
+// 'random' and 'daily' are resolved as a page resolves them, and the seed
+// drawn is then reported on standard error.
 'use strict';
 
 const AnversIdentity = require('../anvers-identity.js');
@@ -17,7 +20,7 @@ function parse(argv) {
     const arg = argv[i];
     if (arg === '--json') { opts.json = true; continue; }
     if (arg === '--help' || arg === '-h') { opts.help = true; continue; }
-    const m = /^--(shape|colour|color|scheme|background|size|label)(?:=(.*))?$/.exec(arg);
+    const m = /^--(shape|colour|color|align|scheme|background|size|label)(?:=(.*))?$/.exec(arg);
     if (m) {
       const value = m[2] !== undefined ? m[2] : argv[++i];
       if (value === undefined) throw new Error(`--${m[1]} needs a value`);
@@ -41,12 +44,12 @@ function main() {
   }
   const {seed: given, opts} = parsed;
   if (opts.help) {
-    process.stdout.write('usage: anvers-mark [seed] [--shape S] [--colour C] [--scheme light|dark] ' +
-      '[--background none|paper|ink] [--size N] [--label TEXT] [--json]\n');
+    process.stdout.write('usage: anvers-mark [seed|random|daily] [--shape S] [--colour C] [--align A] ' +
+      '[--scheme light|dark] [--background none|paper|ink] [--size N] [--label TEXT] [--json]\n');
     return;
   }
-  const seed = given !== undefined ? given : AnversIdentity.newSeed();
-  if (given === undefined) process.stderr.write(`seed ${seed}\n`);
+  const seed = AnversIdentity.resolveSeed(given);
+  if (given === undefined || seed !== given) process.stderr.write(`seed ${seed}\n`);
   try {
     const out = opts.json
       ? JSON.stringify(AnversIdentity.describe(seed, opts), null, 2)

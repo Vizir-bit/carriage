@@ -16,46 +16,69 @@
 (function (root, factory) {
   'use strict';
   const api = factory(root);
-  if (typeof module === 'object' && module && module.exports) {
-    module.exports = api;
-  } else {
-    root.AnversIdentity = api;
+  if (typeof module === 'object' && module && module.exports) module.exports = api;
+  // In a page (even one that defines a global `module`), publish the global
+  // and draw the marks.
+  if (root && root.document) {
+    if (!root.AnversIdentity) root.AnversIdentity = api;
     api.autoMount(root.document);
   }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
-  const VERSION = '1.0.0';
-  const GRAMMAR = 1;
+  const VERSION = '2.0.0';
+  // Grammar 1 was the review draft of 18 October 2026 (commit 3205963); it
+  // was replaced before any integration.
+  const GRAMMAR = 2;
   const DEFAULT_SEED = 'anvers';
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   // The mark is drawn in a 100 x 100 box; the outline always stays inside
-  // SAFE, so the shape can never paint outside its own box.
+  // SAFE, so the shape can never paint outside its own box. With the
+  // wordmark, the shape stands on BASELINE instead of being centred, so the
+  // gap between shape and word is the same for every seed.
   const VIEW = 100;
   const SAFE = Object.freeze({min: 7, max: 93});
+  const BASELINE = 88;
+  const MARK_SIZE = 160;
 
   const SHAPES = Object.freeze(['circle', 'square', 'triangle']);
   const COLOURS = Object.freeze(['red', 'yellow', 'blue']);
+  const ALIGNS = Object.freeze(['centre', 'baseline']);
 
   // Restrained primaries: print-like rather than screen-pure. The dark set is
-  // lifted so red and blue keep at least 3:1 against a dark page.
+  // lifted to keep at least 4.5:1 against a dark page, red and blue at the
+  // same lightness.
   const PALETTE = Object.freeze({
     light: Object.freeze({red: '#c0392b', yellow: '#e0a817', blue: '#1f4e99'}),
-    dark: Object.freeze({red: '#e2594b', yellow: '#ebb935', blue: '#6b95dc'}),
+    dark: Object.freeze({red: '#e2594b', yellow: '#ebb935', blue: '#538ae6'}),
   });
   const GROUNDS = Object.freeze({paper: '#f3efe6', ink: '#161616'});
 
   // Every distortion has a floor and a ceiling: the floor keeps the mark
-  // visibly distorted, the ceiling keeps the primitive recognisable.
+  // visibly distorted, the ceiling keeps the primitive recognisable. The
+  // stretch multiplies one axis and divides the other, so the aspect changes
+  // by its square: 1.12 to 1.25 for polygons, 1.12 to 1.44 for the circle,
+  // whose only distortion is affine (it becomes an ellipse).
   const BOUNDS = Object.freeze({
     rotate: Object.freeze([-12, 12]),     // degrees
     shear: Object.freeze([0.06, 0.18]),   // |k| of an x-shear, either sign
-    stretch: Object.freeze([1.06, 1.25]), // aspect factor, either axis
+    stretch: Object.freeze({              // per-axis factor, either axis
+      circle: Object.freeze([1.06, 1.20]),
+      square: Object.freeze([1.06, 1.12]),
+      triangle: Object.freeze([1.06, 1.12]),
+    }),
     vertex: 0.10,   // polygon vertex shift per axis, in unit-radius terms
-    radial: 0.06,   // circle anchor radius change, in unit-radius terms
-    angular: 7,     // circle anchor angle change, degrees
-    handle: 0.10,   // circle handle length change, relative
+  });
+
+  // A polygon too close to its regular form after distortion is redrawn with
+  // its vertex shifts mirrored and, if it is still too regular, with the
+  // shear at its ceiling (deterministic, no extra draw). Regular enough to
+  // redraw: every angle within `angle` degrees of the regular one and, for
+  // the square, sides within `sides` of each other.
+  const FLOOR = Object.freeze({
+    triangle: Object.freeze({angle: 8}),
+    square: Object.freeze({angle: 8, sides: 1.2}),
   });
 
   // Equal areas do not look equal: a circle and a triangle read smaller than
@@ -99,6 +122,10 @@
     };
   }
 
+  // Seeds are compared as text after Unicode normalisation (NFC) and
+  // trimming, so the same visible text always draws the same mark.
+  const clean = value => String(value).normalize('NFC').trim();
+
   // A fresh seed: eight characters of Crockford's base-32 alphabet, from the
   // platform's cryptographic generator when there is one.
   function newSeed() {
@@ -123,7 +150,7 @@
       const pad = n => String(n).padStart(2, '0');
       return `day-${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
     }
-    const seed = String(input).trim();
+    const seed = clean(input);
     return seed === '' ? newSeed() : seed;
   }
 
@@ -136,7 +163,8 @@
 
   // The draws are taken in a fixed order and always in the same number,
   // whatever the shape, so pinning a shape or colour leaves the rest of the
-  // seed's mark unchanged.
+  // seed's mark unchanged. The stretch range depends on the shape, so it is
+  // kept as a fraction and a sign until the shape is known.
   function draw(seed) {
     const next = sfc32(hash128(`anvers/${GRAMMAR}/${seed}`));
     const shapeU = next(), colourU = next();
@@ -149,60 +177,96 @@
       colour: COLOURS[Math.min(COLOURS.length - 1, Math.floor(colourU * COLOURS.length))],
       rotate: lerp(BOUNDS.rotate[0], BOUNDS.rotate[1], rotateU),
       shear: (shearSignU < 0.5 ? -1 : 1) * lerp(BOUNDS.shear[0], BOUNDS.shear[1], shearU),
-      stretch: Math.exp((stretchSignU < 0.5 ? -1 : 1) *
-                        lerp(Math.log(BOUNDS.stretch[0]), Math.log(BOUNDS.stretch[1]), stretchU)),
+      stretchU,
+      stretchSign: stretchSignU < 0.5 ? -1 : 1,
       jitter,
     };
+  }
+
+  function stretchFor(shape, drawn) {
+    const [lo, hi] = BOUNDS.stretch[shape];
+    return Math.exp(drawn.stretchSign * lerp(Math.log(lo), Math.log(hi), drawn.stretchU));
   }
 
   // Unit primitives centred on the origin (y grows downwards, as in SVG).
   // Polygons are lists of vertices; the circle is four cubic curves, given as
   // a closed list [anchor, out-handle, in-handle, anchor, ...].
-  function polygon(shape, jitter, distorted) {
+  function polygon(shape, jitter) {
     const base = shape === 'square'
       ? [[-1, -1], [1, -1], [1, 1], [-1, 1]]
       : [[0, -1], [Math.cos(toRad(30)), Math.sin(toRad(30))], [-Math.cos(toRad(30)), Math.sin(toRad(30))]];
-    if (!distorted) return base;
+    if (!jitter) return base;
     return base.map(([x, y], i) => [x + jitter[2 * i] * BOUNDS.vertex,
                                     y + jitter[2 * i + 1] * BOUNDS.vertex]);
   }
 
-  function circle(jitter, distorted) {
-    const anchors = [];
+  function circle() {
+    const k = 4 / 3 * Math.tan(Math.PI / 8);
+    const points = [[1, 0]];
     for (let i = 0; i < 4; i++) {
-      const radius = distorted ? 1 + jitter[i] * BOUNDS.radial : 1;
-      const angle = toRad(i * 90 + (distorted ? jitter[4 + i] * BOUNDS.angular : 0));
-      anchors.push({radius, angle,
-                    out: distorted ? 1 + jitter[8 + i] * BOUNDS.handle : 1,
-                    in: distorted ? 1 + jitter[12 + i] * BOUNDS.handle : 1});
-    }
-    const points = [];
-    for (let i = 0; i < 4; i++) {
-      const a = anchors[i], b = anchors[(i + 1) % 4];
-      const bAngle = i === 3 ? b.angle + 2 * Math.PI : b.angle;
-      const k = 4 / 3 * Math.tan((bAngle - a.angle) / 4);
-      const pa = [a.radius * Math.cos(a.angle), a.radius * Math.sin(a.angle)];
-      const pb = [b.radius * Math.cos(b.angle), b.radius * Math.sin(b.angle)];
-      const ta = [-Math.sin(a.angle), Math.cos(a.angle)];
-      const tb = [-Math.sin(b.angle), Math.cos(b.angle)];
-      const la = k * a.radius * a.out, lb = k * b.radius * b.in;
-      if (i === 0) points.push(pa);
-      points.push([pa[0] + la * ta[0], pa[1] + la * ta[1]],
-                  [pb[0] - lb * tb[0], pb[1] - lb * tb[1]],
-                  pb);
+      const a = i * Math.PI / 2, b = a + Math.PI / 2;
+      const pa = [Math.cos(a), Math.sin(a)], pb = [Math.cos(b), Math.sin(b)];
+      points.push([pa[0] - k * pa[1], pa[1] + k * pa[0]],
+                  [pb[0] + k * pb[1], pb[1] - k * pb[0]],
+                  [Math.round(pb[0] * 1e12) / 1e12, Math.round(pb[1] * 1e12) / 1e12]);
     }
     return points;
   }
 
   // rotate . shear . stretch; every factor has determinant 1, so the affine
   // part never changes the area, only the proportions.
-  function affine(points, d) {
-    const c = Math.cos(toRad(d.rotate)), s = Math.sin(toRad(d.rotate));
+  function affine(points, t) {
+    const c = Math.cos(toRad(t.rotate)), s = Math.sin(toRad(t.rotate));
     return points.map(([x, y]) => {
-      const sx = x * d.stretch, sy = y / d.stretch;
-      const hx = sx + d.shear * sy;
+      const sx = x * t.stretch, sy = y / t.stretch;
+      const hx = sx + t.shear * sy;
       return [c * hx - s * sy, s * hx + c * sy];
     });
+  }
+
+  function angles(points) {
+    return points.map((p, i) => {
+      const a = points[(i + points.length - 1) % points.length], b = points[(i + 1) % points.length];
+      const u = [a[0] - p[0], a[1] - p[1]], v = [b[0] - p[0], b[1] - p[1]];
+      const cos = (u[0] * v[0] + u[1] * v[1]) / Math.hypot(u[0], u[1]) / Math.hypot(v[0], v[1]);
+      return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
+    });
+  }
+
+  // Whether a distorted polygon still looks like its regular form.
+  function tooRegular(shape, points) {
+    const floor = FLOOR[shape];
+    if (!floor) return false;
+    const regular = shape === 'square' ? 90 : 60;
+    const offAngle = Math.max(...angles(points).map(a => Math.abs(a - regular)));
+    if (shape === 'triangle') return offAngle < floor.angle;
+    const sides = points.map((p, i) => {
+      const q = points[(i + 1) % points.length];
+      return Math.hypot(q[0] - p[0], q[1] - p[1]);
+    });
+    return offAngle < floor.angle && Math.max(...sides) / Math.min(...sides) < floor.sides;
+  }
+
+  // The distorted unit outline for a shape and a set of draws, with the
+  // legibility floor applied. Returns the points and what was applied.
+  function distort(shape, drawn) {
+    const t = {rotate: drawn.rotate, shear: drawn.shear, stretch: stretchFor(shape, drawn)};
+    if (shape === 'circle') return {points: affine(circle(), t), t, jitter: [], floor: 'none'};
+    const count = shape === 'square' ? 8 : 6;
+    let jitter = drawn.jitter.slice(0, count);
+    let points = affine(polygon(shape, jitter), t);
+    let floor = 'none';
+    if (tooRegular(shape, points)) {
+      jitter = jitter.map(j => -j);
+      points = affine(polygon(shape, jitter), t);
+      floor = 'mirrored';
+      if (tooRegular(shape, points)) {
+        t.shear = Math.sign(t.shear) * BOUNDS.shear[1];
+        points = affine(polygon(shape, jitter), t);
+        floor = 'sheared';
+      }
+    }
+    return {points, t, jitter, floor};
   }
 
   function cubicPoint(p0, p1, p2, p3, t) {
@@ -244,24 +308,27 @@
 
   const transform = (points, scale, dx, dy) => points.map(([x, y]) => [x * scale + dx, y * scale + dy]);
 
-  // Scale to the shape's target area, shrink if it would leave the safe box,
-  // centre it between its bounding box and its centroid (the optical centre
-  // of a triangle sits between the two), and nudge it back inside if needed.
-  function place(shape, points) {
+  // Scale to the shape's target area and shrink if it would leave the room
+  // it has. Horizontally, centre it halfway between its bounding box and its
+  // centroid (the optical centre of a triangle sits between the two).
+  // Vertically, do the same, or stand it on the baseline.
+  function place(shape, points, align) {
+    const baseline = align === 'baseline';
+    const roomW = SAFE.max - SAFE.min;
+    const roomH = (baseline ? BASELINE : SAFE.max) - SAFE.min;
     let m = measure(outline(shape, points));
     let pts = transform(points, Math.sqrt(TARGET_AREA[shape] / m.area), 0, 0);
     m = measure(outline(shape, pts));
-    const room = SAFE.max - SAFE.min;
-    if (m.box.w > room || m.box.h > room) {
-      pts = transform(pts, room / Math.max(m.box.w, m.box.h), 0, 0);
+    if (m.box.w > roomW || m.box.h > roomH) {
+      pts = transform(pts, Math.min(roomW / m.box.w, roomH / m.box.h), 0, 0);
       m = measure(outline(shape, pts));
     }
     const cx = ((m.box.minX + m.box.maxX) / 2 + m.centroid[0]) / 2;
     const cy = ((m.box.minY + m.box.maxY) / 2 + m.centroid[1]) / 2;
-    pts = transform(pts, 1, VIEW / 2 - cx, VIEW / 2 - cy);
+    pts = transform(pts, 1, VIEW / 2 - cx, baseline ? BASELINE - m.box.maxY : VIEW / 2 - cy);
     m = measure(outline(shape, pts));
     const nudgeX = Math.max(0, SAFE.min - m.box.minX) - Math.max(0, m.box.maxX - SAFE.max);
-    const nudgeY = Math.max(0, SAFE.min - m.box.minY) - Math.max(0, m.box.maxY - SAFE.max);
+    const nudgeY = baseline ? 0 : Math.max(0, SAFE.min - m.box.minY) - Math.max(0, m.box.maxY - SAFE.max);
     if (nudgeX || nudgeY) {
       pts = transform(pts, 1, nudgeX, nudgeY);
       m = measure(outline(shape, pts));
@@ -290,30 +357,31 @@
   }
 
   // The whole mark for a seed, as data. Pure: no DOM, no clock, no randomness
-  // beyond the seed.
+  // beyond the seed. options: shape, colour, align ('centre' or 'baseline').
   function describe(seed, options) {
     const opts = options || {};
-    const text = String(seed === undefined || seed === null ? DEFAULT_SEED : seed).trim() || DEFAULT_SEED;
+    const text = clean(seed === undefined || seed === null ? DEFAULT_SEED : seed) || DEFAULT_SEED;
     const drawn = draw(text);
     const shape = checkPin('shape', opts.shape, SHAPES) || drawn.shape;
     const colour = checkPin('colour', opts.colour !== undefined ? opts.colour : opts.color, COLOURS) || drawn.colour;
-    const unit = shape === 'circle' ? circle(drawn.jitter, true) : polygon(shape, drawn.jitter, true);
-    const unitBase = shape === 'circle' ? circle(drawn.jitter, false) : polygon(shape, drawn.jitter, false);
-    const final = place(shape, affine(unit, drawn));
-    const base = place(shape, unitBase);
+    const align = checkPin('align', opts.align, ALIGNS) || 'centre';
+    const distorted = distort(shape, drawn);
+    const final = place(shape, distorted.points, align);
+    const base = place(shape, shape === 'circle' ? circle() : polygon(shape, null), align);
     const box = final.measure.box;
     return {
       seed: text,
       grammar: GRAMMAR,
       shape,
       colour,
+      align,
       fill: {light: PALETTE.light[colour], dark: PALETTE.dark[colour]},
       distortion: {
-        rotate: round2(drawn.rotate),
-        shear: Math.round(drawn.shear * 1000) / 1000,
-        stretch: Math.round(drawn.stretch * 1000) / 1000,
-        jitter: drawn.jitter.slice(0, shape === 'circle' ? 16 : shape === 'square' ? 8 : 6)
-          .map(j => Math.round(j * 1000) / 1000),
+        rotate: round2(distorted.t.rotate),
+        shear: Math.round(distorted.t.shear * 1000) / 1000,
+        stretch: Math.round(distorted.t.stretch * 1000) / 1000,
+        jitter: distorted.jitter.map(j => Math.round(j * 1000) / 1000),
+        floor: distorted.floor,
       },
       d: pathData(shape, final.points),
       base: pathData(shape, base.points),
@@ -324,67 +392,95 @@
 
   // ---- SVG text ----------------------------------------------------------
 
-  const escapeXml = text => String(text).replace(/[&<>"']/g, ch => (
-    {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;'}[ch]));
+  // Characters XML 1.0 cannot carry at all: C0 controls other than tab, line
+  // feed and carriage return, U+FFFE, U+FFFF and unpaired surrogates.
+  const XML_INVALID = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const ESCAPES = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
+                   '\t': '&#9;', '\n': '&#10;', '\r': '&#13;'};
+  function escapeXml(text, what) {
+    const value = String(text);
+    if (XML_INVALID.test(value)) {
+      throw new RangeError(`AnversIdentity: the ${what} holds a character SVG cannot carry`);
+    }
+    return value.replace(/[&<>"'\t\n\r]/g, ch => ESCAPES[ch]);
+  }
 
   // The mark as standalone SVG text, for files, icons and a static fallback.
-  // options: shape, colour, label ('' for decorative), scheme ('light' or
-  // 'dark'), background ('none', 'paper' or 'ink'), size (pixels).
+  // options: shape, colour, align, label ('' for decorative), scheme ('light'
+  // or 'dark'), background ('none', 'paper' or 'ink'), size (pixels).
   function svg(seed, options) {
     const opts = options || {};
     const mark = describe(seed, opts);
     const label = opts.label === undefined ? 'Anvers' : String(opts.label);
     const scheme = opts.scheme === 'dark' ? 'dark' : 'light';
-    const background = opts.background || 'none';
-    if (background !== 'none' && !GROUNDS[background]) {
+    const background = opts.background === undefined ? 'none' : opts.background;
+    if (background !== 'none' && !Object.prototype.hasOwnProperty.call(GROUNDS, background)) {
       throw new RangeError(`AnversIdentity: background must be none, paper or ink; got ${background}`);
     }
-    const size = opts.size ? ` width="${Number(opts.size)}" height="${Number(opts.size)}"` : '';
-    const a11y = label
-      ? ` role="img" aria-label="${escapeXml(label)}"`
-      : ' aria-hidden="true"';
+    let size = '';
+    if (opts.size !== undefined && opts.size !== null && opts.size !== '') {
+      const n = Number(opts.size);
+      if (!Number.isFinite(n) || n <= 0) throw new RangeError(`AnversIdentity: size must be a positive number; got ${opts.size}`);
+      size = ` width="${n}" height="${n}"`;
+    }
+    const a11y = label ? ` role="img" aria-label="${escapeXml(label, 'label')}"` : ' aria-hidden="true"';
     const ground = background === 'none'
       ? ''
       : `<rect width="${VIEW}" height="${VIEW}" fill="${GROUNDS[background]}"/>`;
-    const title = label ? `<title>${escapeXml(label)}</title>` : '';
     return `<svg xmlns="${SVG_NS}" viewBox="0 0 ${VIEW} ${VIEW}"${size} class="anvers-mark"` +
-      ` focusable="false"${a11y} data-anvers-seed="${escapeXml(mark.seed)}" data-anvers-grammar="${GRAMMAR}">` +
-      title + ground +
+      ` focusable="false"${a11y} data-anvers-seed="${escapeXml(mark.seed, 'seed')}" data-anvers-grammar="${GRAMMAR}">` +
+      ground +
       `<path class="anvers-mark__shape anvers-mark__shape--${mark.colour}" fill="${mark.fill[scheme]}" d="${mark.d}"/>` +
       '</svg>';
   }
 
   // ---- DOM ---------------------------------------------------------------
 
-  function reducedMotion(win) {
+  function matches(win, query) {
     try {
-      return !win || typeof win.matchMedia !== 'function' ||
-        win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      return !!(win && typeof win.matchMedia === 'function' && win.matchMedia(query).matches);
     } catch (e) {
-      return true;
+      return false;
     }
   }
 
+  function reducedMotion(win) {
+    return !win || typeof win.matchMedia !== 'function' || matches(win, '(prefers-reduced-motion: reduce)');
+  }
+
   // The one optional motion: the pure primitive settles into its distortion,
-  // once. Never under reduced motion, and only where CSS can interpolate 'd'
-  // (Chromium can); everywhere else the mark is simply drawn in place.
+  // once. Never under reduced motion (checked here and, independently, by the
+  // stylesheet), and only where a 'd' transition will really run; everywhere
+  // else the mark is simply drawn in place, with nothing left behind.
   function settle(path, mark, win) {
     if (reducedMotion(win)) return false;
     if (!(win.CSS && typeof win.CSS.supports === 'function' && win.CSS.supports('d', 'path("M 0 0")'))) return false;
-    if (typeof win.requestAnimationFrame !== 'function') return false;
+    if (typeof win.requestAnimationFrame !== 'function' || !path.isConnected) return false;
     path.style.setProperty('d', `path("${mark.base}")`);
-    win.getComputedStyle(path).getPropertyValue('d');
+    const style = win.getComputedStyle(path);
+    style.getPropertyValue('d');
+    const runs = /(^|,)\s*(d|all)\s*(,|$)/.test(style.transitionProperty) &&
+      parseFloat(style.transitionDuration) > 0 && path.getClientRects().length > 0;
+    if (!runs) {
+      path.style.removeProperty('d');
+      return false;
+    }
     win.requestAnimationFrame(() => {
       path.style.setProperty('d', `path("${mark.d}")`);
-      path.addEventListener('transitionend', () => path.style.removeProperty('d'), {once: true});
+      const clear = () => path.style.removeProperty('d');
+      path.addEventListener('transitionend', clear, {once: true});
+      path.addEventListener('transitioncancel', clear, {once: true});
+      if (typeof path.getAnimations === 'function' && path.getAnimations().length === 0) clear();
     });
     return true;
   }
 
   // Draws the mark into target, replacing what is there (for instance the
-  // static fallback). options: seed ('random', 'daily' or a seed; default
-  // 'random'), shape, colour, label ('Anvers'; '' for decorative), wordmark
-  // (false), motion ('none' or 'settle'; default 'none').
+  // static fallback), and returns its description with `animated` added.
+  // options: seed ('random', 'daily' or a seed; default 'random'), shape,
+  // colour, label ('Anvers'; '' for decorative), wordmark (false), align
+  // ('baseline' with the wordmark, else 'centre'), motion ('none' or
+  // 'settle'; default 'none').
   function render(target, options) {
     if (!target || !target.ownerDocument || typeof target.replaceChildren !== 'function') {
       throw new TypeError('AnversIdentity.render: a DOM element is required');
@@ -392,13 +488,18 @@
     const opts = options || {};
     const doc = target.ownerDocument;
     const win = doc.defaultView;
-    const seed = resolveSeed(opts.seed);
-    const mark = describe(seed, opts);
-    const label = opts.label === undefined ? 'Anvers' : String(opts.label);
     const wordmark = opts.wordmark === true;
+    const seed = resolveSeed(opts.seed);
+    const mark = describe(seed, {shape: opts.shape, colour: opts.colour !== undefined ? opts.colour : opts.color,
+                                 align: opts.align || (wordmark ? 'baseline' : 'centre')});
+    const label = opts.label === undefined ? 'Anvers' : String(opts.label);
 
     const svgEl = doc.createElementNS(SVG_NS, 'svg');
     svgEl.setAttribute('viewBox', `0 0 ${VIEW} ${VIEW}`);
+    // A fallback size: the stylesheet overrides it, and without the
+    // stylesheet the mark still cannot fill the page.
+    svgEl.setAttribute('width', String(MARK_SIZE));
+    svgEl.setAttribute('height', String(MARK_SIZE));
     svgEl.setAttribute('class', 'anvers-mark');
     svgEl.setAttribute('focusable', 'false');
     // With the wordmark the name is spoken from the text, so the drawing is
@@ -412,7 +513,7 @@
     }
     const path = doc.createElementNS(SVG_NS, 'path');
     path.setAttribute('class', `anvers-mark__shape anvers-mark__shape--${mark.colour}`);
-    path.setAttribute('fill', mark.fill.light);
+    path.setAttribute('fill', matches(win, '(prefers-color-scheme: dark)') ? mark.fill.dark : mark.fill.light);
     path.setAttribute('d', mark.d);
     svgEl.appendChild(path);
 
@@ -442,6 +543,7 @@
     if (data.seed !== undefined) opts.seed = data.seed;
     if (data.shape) opts.shape = data.shape;
     if (data.colour || data.color) opts.colour = data.colour || data.color;
+    if (data.align) opts.align = data.align;
     if (el.hasAttribute('data-label')) opts.label = data.label;
     if (data.wordmark !== undefined) opts.wordmark = data.wordmark !== 'false';
     if (data.motion) opts.motion = data.motion;
@@ -466,28 +568,39 @@
   }
 
   // Mounts once the document is parsed, after any deferred script that sets
-  // data attributes first.
+  // data attributes first; at once if the script arrives later than that.
   function autoMount(doc) {
     if (!doc || typeof doc.addEventListener !== 'function') return;
-    if (doc.readyState === 'complete') {
+    let done = false;
+    const run = () => {
+      if (done) return;
+      done = true;
       mountAll(doc);
+    };
+    const win = doc.defaultView;
+    const perf = win && win.performance;
+    const nav = perf && typeof perf.getEntriesByType === 'function' ? perf.getEntriesByType('navigation')[0] : null;
+    if (doc.readyState === 'complete' || (nav && nav.domContentLoadedEventEnd > 0)) {
+      run();
       return;
     }
-    const run = () => mountAll(doc);
     doc.addEventListener('DOMContentLoaded', run, {once: true});
-    if (doc.defaultView) doc.defaultView.addEventListener('load', run, {once: true});
+    if (win) win.addEventListener('load', run, {once: true});
   }
 
-  return Object.freeze({
+  const api = {
     version: VERSION,
     grammar: GRAMMAR,
     defaultSeed: DEFAULT_SEED,
     shapes: SHAPES,
     colours: COLOURS,
+    aligns: ALIGNS,
     palette: PALETTE,
     grounds: GROUNDS,
     bounds: BOUNDS,
+    floor: FLOOR,
     safe: SAFE,
+    baseline: BASELINE,
     targetArea: TARGET_AREA,
     newSeed,
     resolveSeed,
@@ -496,5 +609,11 @@
     render,
     mountAll,
     autoMount,
+  };
+  // The geometry, for the tests that check the bounds themselves rather than
+  // a sample of seeds. Not part of the interface.
+  Object.defineProperty(api, '_geometry', {
+    value: Object.freeze({draw, stretchFor, distort, place, measure, outline, angles, tooRegular}),
   });
+  return Object.freeze(api);
 }));

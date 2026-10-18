@@ -1,6 +1,6 @@
 {
   "name": "anvers-identity",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Anvers identity: one geometric shape, coloured at random and distorted within bounds, from a reproducible seed.",
   "type": "commonjs",
@@ -8,10 +8,14 @@
   "exports": {
     ".": {
       "import": "./anvers-identity.mjs",
-      "require": "./anvers-identity.js"
+      "require": "./anvers-identity.js",
+      "default": "./anvers-identity.js"
     },
+    "./anvers-identity.js": "./anvers-identity.js",
+    "./anvers-identity.mjs": "./anvers-identity.mjs",
     "./anvers-identity.css": "./anvers-identity.css",
-    "./anvers-default.svg": "./anvers-default.svg"
+    "./anvers-default.svg": "./anvers-default.svg",
+    "./package.json": "./package.json"
   },
   "bin": {
     "anvers-mark": "bin/anvers-mark.js"

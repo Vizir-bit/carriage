@@ -6,13 +6,29 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {execFileSync} = require('node:child_process');
+const {execFileSync, spawnSync} = require('node:child_process');
 
 const A = require('../anvers-identity.js');
+const G = A._geometry;
 
 const ROOT = path.join(__dirname, '..');
+const CLI = path.join(ROOT, 'bin', 'anvers-mark.js');
 const SWEEP = 6000;
 const seeds = Array.from({length: SWEEP}, (_, i) => `sweep-${i}`);
+
+// The contract, written out here so that a change to the module's own
+// constants cannot pass unnoticed.
+const SAFE = {min: 7, max: 93};
+const BASELINE = 88;
+const BOUNDS = {
+  rotate: [-12, 12],
+  shear: [0.06, 0.18],
+  stretch: {circle: [1.06, 1.20], square: [1.06, 1.12], triangle: [1.06, 1.12]},
+  vertex: 0.10,
+};
+// Worst triangle area, as a share of its target, over the bounds' extremes
+// and midpoints (README); the tests hold these floors with a small margin.
+const TRIANGLE_FLOOR = {centre: 0.85, baseline: 0.78};
 
 // Points of a path as written: M/L/C coordinates, in order.
 function numbers(d) {
@@ -21,11 +37,14 @@ function numbers(d) {
 function commands(d) {
   return d.replace(/[^MLCZ]/g, '');
 }
+function points(d) {
+  const n = numbers(d), pts = [];
+  for (let i = 0; i < n.length; i += 2) pts.push([n[i], n[i + 1]]);
+  return pts;
+}
 // Outline points: polygon vertices, or the circle's curves sampled finely.
 function ring(mark) {
-  const n = numbers(mark.d);
-  const pts = [];
-  for (let i = 0; i < n.length; i += 2) pts.push([n[i], n[i + 1]]);
+  const pts = points(mark.d);
   if (mark.shape !== 'circle') return pts;
   const out = [];
   for (let i = 0; i + 3 < pts.length; i += 3) {
@@ -49,6 +68,10 @@ function convex(pts) {
   }
   return true;
 }
+function inside(pts, maxY) {
+  return pts.every(([x, y]) => x >= SAFE.min - 0.01 && x <= SAFE.max + 0.01 &&
+                               y >= SAFE.min - 0.01 && y <= maxY + 0.01);
+}
 function luminance(hex) {
   const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
@@ -58,6 +81,15 @@ function contrast(a, b) {
   const x = luminance(a), y = luminance(b);
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
+function cli(args, options) {
+  return spawnSync(process.execPath, [CLI, ...args], {encoding: 'utf8', ...options});
+}
+
+test('the contract: bounds, safe area and baseline are the documented ones', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(A.bounds)), BOUNDS);
+  assert.deepEqual({...A.safe}, SAFE);
+  assert.equal(A.baseline, BASELINE);
+});
 
 test('the same seed always gives the same mark, byte for byte', () => {
   for (const seed of ['anvers', 'k3f9q2xa', 'Nadar', '1919', ' padded ']) {
@@ -66,15 +98,24 @@ test('the same seed always gives the same mark, byte for byte', () => {
   }
   assert.equal(A.describe(' padded ').seed, 'padded');
   assert.equal(A.describe(1919).d, A.describe('1919').d);
+  // The same visible text draws the same mark, however it is encoded.
+  const nfc = 'Bauhaus café', nfd = 'Bauhaus café';
+  assert.notEqual(nfc, nfd);
+  assert.equal(A.describe(nfd).d, A.describe(nfc).d);
+  assert.equal(A.resolveSeed(nfd), nfc);
 });
 
-test('golden marks: grammar 1 draws these seeds exactly so', () => {
+test('golden marks and palette: this grammar draws these seeds exactly so', () => {
   const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'golden.json'), 'utf8'));
-  assert.equal(golden.grammar, A.grammar,
-    'the grammar changed: regenerate test/golden.json on purpose (see README)');
+  const why = 'the grammar changed: raise GRAMMAR and regenerate test/golden.json on purpose (see README)';
+  assert.equal(golden.grammar, A.grammar, why);
+  assert.deepEqual(JSON.parse(JSON.stringify(A.palette)), golden.palette, why);
   for (const [seed, expected] of Object.entries(golden.marks)) {
     const mark = A.describe(seed);
-    assert.deepEqual({shape: mark.shape, colour: mark.colour, d: mark.d}, expected, `seed ${seed}`);
+    assert.deepEqual({shape: mark.shape, colour: mark.colour, d: mark.d}, expected, `seed ${seed}: ${why}`);
+  }
+  for (const [seed, d] of Object.entries(golden.baseline)) {
+    assert.equal(A.describe(seed, {align: 'baseline'}).d, d, `seed ${seed} on the baseline: ${why}`);
   }
 });
 
@@ -97,64 +138,104 @@ test('one shape and one colour, from the fixed sets, in even shares', () => {
   for (const count of [...Object.values(shapes), ...Object.values(colours)]) {
     assert.ok(Math.abs(count / SWEEP - 1 / 3) < 0.03, `share ${count / SWEEP}`);
   }
-  const svg = A.svg('anvers');
-  assert.equal((svg.match(/<path/g) || []).length, 1, 'exactly one shape');
+  assert.equal((A.svg('anvers').match(/<path/g) || []).length, 1, 'exactly one shape');
 });
 
-test('distortion stays between its floor and its ceiling', () => {
-  const b = A.bounds;
+test('drawn distortion stays between its floor and its ceiling', () => {
   for (const seed of seeds) {
     const {distortion: t, shape} = A.describe(seed);
-    assert.ok(t.rotate >= b.rotate[0] && t.rotate <= b.rotate[1], `rotate ${t.rotate}`);
-    assert.ok(Math.abs(t.shear) >= b.shear[0] - 1e-3 && Math.abs(t.shear) <= b.shear[1] + 1e-3, `shear ${t.shear}`);
-    const aspect = Math.max(t.stretch, 1 / t.stretch);
-    assert.ok(aspect >= b.stretch[0] - 1e-3 && aspect <= b.stretch[1] + 1e-3, `stretch ${t.stretch}`);
-    assert.equal(t.jitter.length, shape === 'circle' ? 16 : shape === 'square' ? 8 : 6);
+    assert.ok(t.rotate >= BOUNDS.rotate[0] && t.rotate <= BOUNDS.rotate[1], `rotate ${t.rotate}`);
+    assert.ok(Math.abs(t.shear) >= BOUNDS.shear[0] - 1e-3 && Math.abs(t.shear) <= BOUNDS.shear[1] + 1e-3, `shear ${t.shear}`);
+    // The per-axis factor: one axis is multiplied by it and the other divided.
+    const factor = Math.max(t.stretch, 1 / t.stretch);
+    const [lo, hi] = BOUNDS.stretch[shape];
+    assert.ok(factor >= lo - 1e-3 && factor <= hi + 1e-3, `${shape} stretch ${t.stretch}`);
+    assert.equal(t.jitter.length, shape === 'circle' ? 0 : shape === 'square' ? 8 : 6);
     for (const j of t.jitter) assert.ok(Math.abs(j) <= 1);
   }
 });
 
-test('the outline never leaves the safe area, and stays convex', () => {
-  for (const seed of seeds) {
-    const m = A.describe(seed);
-    const pts = ring(m);
-    for (const [x, y] of pts) {
-      assert.ok(x >= A.safe.min - 0.01 && x <= A.safe.max + 0.01, `${seed}: x ${x}`);
-      assert.ok(y >= A.safe.min - 0.01 && y <= A.safe.max + 0.01, `${seed}: y ${y}`);
+test('the bounds themselves: every extreme stays in its room, convex, at weight', () => {
+  // Every combination of the bounds' extremes and midpoints (vertex shifts at
+  // -1, 0 and +1 for the triangle, -1 and +1 for the square), through the
+  // module's own geometry, with the legibility floor applied.
+  const R = [-12, -6, 0, 6, 12], K = [-0.18, -0.12, -0.06, 0.06, 0.12, 0.18], U = [0, 0.5, 1], S = [-1, 1];
+  const worst = {centre: Infinity, baseline: Infinity};
+  let minAngle = 180, cases = 0;
+  const check = (shape, jitter) => {
+    for (const rotate of R) for (const shear of K) for (const stretchU of U) for (const stretchSign of S) {
+      const distorted = G.distort(shape, {rotate, shear, stretchU, stretchSign, jitter});
+      if (shape !== 'circle') assert.ok(convex(distorted.points), `${shape} not convex`);
+      if (shape === 'triangle') minAngle = Math.min(minAngle, ...G.angles(distorted.points));
+      for (const align of A.aligns) {
+        const placed = G.place(shape, distorted.points, align);
+        const box = placed.measure.box;
+        const maxY = align === 'baseline' ? BASELINE : SAFE.max;
+        assert.ok(box.minX >= SAFE.min - 1e-9 && box.maxX <= SAFE.max + 1e-9 &&
+                  box.minY >= SAFE.min - 1e-9 && box.maxY <= maxY + 1e-9, `${shape} ${align} leaves its room`);
+        if (align === 'baseline') assert.ok(Math.abs(box.maxY - BASELINE) < 1e-9, `${shape} off the baseline`);
+        const share = placed.measure.area / A.targetArea[shape];
+        assert.ok(share <= 1 + 1e-9);
+        if (shape === 'triangle') worst[align] = Math.min(worst[align], share);
+        else assert.ok(share > 1 - 1e-9, `${shape} ${align} under its target: ${share}`);
+        cases++;
+      }
     }
-    assert.ok(convex(pts), `${seed}: not convex`);
+  };
+  check('circle', new Array(16).fill(0));
+  const walk = (shape, count, values, jitter, i) => {
+    if (i === count) return check(shape, jitter.slice());
+    for (const v of values) { jitter[i] = v; walk(shape, count, values, jitter, i + 1); }
+  };
+  walk('square', 8, [-1, 1], new Array(16).fill(0), 0);
+  walk('triangle', 6, [-1, 0, 1], new Array(16).fill(0), 0);
+  assert.ok(cases > 300000);
+  assert.ok(worst.centre >= TRIANGLE_FLOOR.centre, `triangle at ${worst.centre} of its target`);
+  assert.ok(worst.baseline >= TRIANGLE_FLOOR.baseline, `triangle on the baseline at ${worst.baseline}`);
+  assert.ok(minAngle >= 30, `triangle angle ${minAngle}`);
+});
+
+test('the outline never leaves the safe area, stays convex, and keeps its weight', () => {
+  for (const seed of seeds) {
+    for (const align of A.aligns) {
+      const m = A.describe(seed, {align});
+      const pts = ring(m);
+      assert.ok(inside(pts, align === 'baseline' ? BASELINE : SAFE.max), `${seed} ${align}: outside`);
+      assert.ok(convex(pts), `${seed}: not convex`);
+      const target = A.targetArea[m.shape];
+      assert.ok(m.area <= target * 1.001, `${seed}: area ${m.area}`);
+      const floor = m.shape === 'triangle' ? TRIANGLE_FLOOR[align] : 0.999;
+      assert.ok(m.area >= target * floor, `${seed}: ${m.shape} area ${m.area}`);
+    }
   }
 });
 
-test('visual weight: the area sits at its target, triangles at most 25% under', () => {
+test('the legibility floor: almost no polygon stays close to its regular form', () => {
+  let regular = 0, total = 0;
   for (const seed of seeds) {
-    const m = A.describe(seed);
-    const target = A.targetArea[m.shape];
-    assert.ok(m.area <= target * 1.001, `${seed}: area ${m.area}`);
-    const floor = m.shape === 'triangle' ? 0.75 : 0.999;
-    assert.ok(m.area >= target * floor, `${seed}: ${m.shape} area ${m.area}`);
-  }
-});
-
-test('triangles keep every angle at 30 degrees or more', () => {
-  for (const seed of seeds) {
-    const m = A.describe(seed, {shape: 'triangle'});
-    const n = numbers(m.d);
-    const p = [[n[0], n[1]], [n[2], n[3]], [n[4], n[5]]];
-    for (let i = 0; i < 3; i++) {
-      const a = p[i], b = p[(i + 1) % 3], c = p[(i + 2) % 3];
-      const u = [b[0] - a[0], b[1] - a[1]], v = [c[0] - a[0], c[1] - a[1]];
-      const cos = (u[0] * v[0] + u[1] * v[1]) / Math.hypot(...u) / Math.hypot(...v);
-      assert.ok(Math.acos(cos) * 180 / Math.PI >= 30, `${seed}: angle`);
+    for (const shape of ['square', 'triangle']) {
+      const m = A.describe(seed, {shape});
+      total++;
+      if (G.tooRegular(shape, points(m.d))) regular++;
+      if (shape === 'triangle') {
+        for (const angle of G.angles(points(m.d))) assert.ok(angle >= 30, `${seed}: angle ${angle}`);
+      }
     }
   }
+  assert.ok(regular / total < 0.002, `${regular} of ${total} still regular`);
+  // The floor is applied deterministically: a seed that needs it, and what
+  // it took, are part of the seed's description.
+  const floors = new Set(seeds.slice(0, 2000).map(s => A.describe(s, {shape: 'triangle'}).distortion.floor));
+  assert.deepEqual([...floors].sort(), ['mirrored', 'none', 'sheared']);
 });
 
 test('the undistorted start has the same commands, so CSS can interpolate it', () => {
   for (const seed of seeds.slice(0, 1000)) {
-    const m = A.describe(seed);
-    assert.equal(commands(m.base), commands(m.d));
-    assert.equal(numbers(m.base).length, numbers(m.d).length);
+    for (const align of A.aligns) {
+      const m = A.describe(seed, {align});
+      assert.equal(commands(m.base), commands(m.d));
+      assert.equal(numbers(m.base).length, numbers(m.d).length);
+    }
   }
   assert.match(A.describe('x', {shape: 'circle'}).d, /^M [\d.]+ [\d.]+( C( [\d.]+){6}){4} Z$/);
   assert.match(A.describe('x', {shape: 'square'}).d, /^M [\d.]+ [\d.]+( L [\d.]+ [\d.]+){3} Z$/);
@@ -175,25 +256,45 @@ test('pinning a shape or a colour leaves the rest of the seed unchanged', () => 
   }
   assert.throws(() => A.describe('x', {shape: 'hexagon'}), RangeError);
   assert.throws(() => A.describe('x', {colour: 'green'}), RangeError);
+  assert.throws(() => A.describe('x', {align: 'top'}), RangeError);
 });
 
-test('restrained primaries: red and blue hold 3:1, yellow is the stated exception', () => {
+test('restrained primaries: red and blue hold 4.5:1, yellow is the stated exception', () => {
   const lightGrounds = ['#ffffff', '#f6f4ef', A.grounds.paper];
   const darkGrounds = ['#000000', '#151515', A.grounds.ink, '#1e1e1e'];
   for (const g of lightGrounds) {
     assert.ok(contrast(A.palette.light.red, g) >= 4.5);
     assert.ok(contrast(A.palette.light.blue, g) >= 4.5);
     // A yellow that reaches 3:1 on paper is no longer yellow; the floor keeps
-    // it from getting paler unnoticed.
+    // it from getting paler unnoticed, and the more-contrast ochre passes.
     assert.ok(contrast(A.palette.light.yellow, g) >= 1.85);
+    assert.ok(contrast('#a87700', g) >= 3);
   }
   for (const g of darkGrounds) {
     for (const c of A.colours) assert.ok(contrast(A.palette.dark[c], g) >= 4.5, `${c} on ${g}`);
   }
+});
+
+test('the stylesheet carries the same palette in every block', () => {
   const css = fs.readFileSync(path.join(ROOT, 'anvers-identity.css'), 'utf8');
-  for (const scheme of ['light', 'dark']) {
-    for (const c of A.colours) assert.ok(css.includes(A.palette[scheme][c]), `${scheme} ${c} in the CSS`);
-  }
+  const tokens = body => Object.fromEntries([...body.matchAll(/--anvers-(red|yellow|blue):\s*(#[0-9a-f]{6})/g)]
+    .map(m => [m[1], m[2]]));
+  const block = (name, pattern) => {
+    const m = pattern.exec(css);
+    assert.ok(m, `${name} block not found`);
+    return tokens(m[1]);
+  };
+  const pin = scheme => new RegExp(`\\[data-anvers-theme="${scheme}"\\] \\.anvers-identity,\\s*` +
+    `\\.anvers-identity\\[data-anvers-theme="${scheme}"\\] \\{([^}]*)\\}`);
+  assert.deepEqual(block('light default', /^\.anvers-identity \{([^}]*)\}/m), {...A.palette.light});
+  assert.deepEqual(block('dark default', /@media \(prefers-color-scheme: dark\) \{\s*\.anvers-identity \{([^}]*)\}/),
+                   {...A.palette.dark});
+  assert.deepEqual(block('light pin', pin('light')), {...A.palette.light});
+  assert.deepEqual(block('dark pin', pin('dark')), {...A.palette.dark});
+  // Under prefers-contrast, only the light yellow changes.
+  const more = [...css.matchAll(/--anvers-(red|yellow|blue):\s*(#[0-9a-f]{6})/g)].map(m => m[2])
+    .filter(hex => ![...Object.values(A.palette.light), ...Object.values(A.palette.dark)].includes(hex));
+  assert.deepEqual(more, ['#a87700', '#a87700']);
 });
 
 test('seeds: random, daily and given', () => {
@@ -203,47 +304,98 @@ test('seeds: random, daily and given', () => {
   assert.match(A.resolveSeed('random'), /^[0-9a-z]{8}$/);
   assert.match(A.resolveSeed(undefined), /^[0-9a-z]{8}$/);
   assert.match(A.resolveSeed('   '), /^[0-9a-z]{8}$/);
-  assert.equal(A.resolveSeed('daily', new Date(2026, 9, 18, 23, 59)), 'day-2026-10-18');
   assert.equal(A.resolveSeed(' k3f9q2xa '), 'k3f9q2xa');
   assert.equal(A.resolveSeed(42), '42');
   assert.equal(A.describe('').seed, A.defaultSeed);
 });
 
-test('svg(): standalone, labelled or decorative, nothing active inside', () => {
+test('daily follows the local calendar, not UTC', () => {
+  // In Los Angeles, 23:59 on 18 October is already 19 October in UTC.
+  const out = execFileSync(process.execPath, ['-e', `
+    const A = require(${JSON.stringify(path.join(ROOT, 'anvers-identity.js'))});
+    process.stdout.write(A.resolveSeed('daily', new Date(2026, 9, 18, 23, 59)) + ' ' +
+                         new Date(2026, 9, 18, 23, 59).toISOString().slice(0, 10));
+  `], {encoding: 'utf8', env: {...process.env, TZ: 'America/Los_Angeles'}});
+  assert.equal(out, 'day-2026-10-18 2026-10-19');
+});
+
+test('svg(): standalone, one accessible name or none, nothing active inside', () => {
   const named = A.svg('anvers');
   assert.match(named, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 100 100"/);
   assert.match(named, /role="img" aria-label="Anvers"/);
-  assert.match(named, /<title>Anvers<\/title>/);
+  assert.doesNotMatch(named, /<title>/, 'one naming source only');
   const decorative = A.svg('anvers', {label: ''});
   assert.match(decorative, /aria-hidden="true"/);
-  assert.doesNotMatch(decorative, /role=|<title>/);
+  assert.doesNotMatch(decorative, /role=|aria-label/);
   assert.match(A.svg('anvers', {label: 'A & <B>'}), /aria-label="A &amp; &lt;B&gt;"/);
   assert.match(A.svg('anvers', {background: 'paper', size: 1024}), /width="1024" height="1024".*<rect width="100" height="100" fill="#f3efe6"\/>/);
   assert.ok(A.svg('anvers', {scheme: 'dark'}).includes(`fill="${A.describe('anvers').fill.dark}"`));
-  assert.throws(() => A.svg('anvers', {background: 'plaid'}), RangeError);
+  for (const bad of ['plaid', 'toString', 'constructor', '__proto__']) {
+    assert.throws(() => A.svg('anvers', {background: bad}), RangeError, bad);
+  }
+  for (const bad of ['abc', -5, 0, Infinity]) assert.throws(() => A.svg('anvers', {size: bad}), RangeError, String(bad));
   for (const seed of seeds.slice(0, 200)) {
-    const text = A.svg(seed);
-    assert.doesNotMatch(text, /<script|\son\w+=|href=|url\(|<foreignObject|<style/i);
+    assert.doesNotMatch(A.svg(seed), /<script|\son\w+=|href=|url\(|<foreignObject|<style/i);
   }
 });
 
-test('the static fallback in the demo is the default seed, drawn by svg()', () => {
+test('svg(): hostile or awkward seeds stay inert and round-trip', () => {
+  const hostile = A.svg('x" onload="alert(1)');
+  assert.doesNotMatch(hostile, /\son\w+="alert/);
+  assert.ok(hostile.includes('data-anvers-seed="x&quot; onload=&quot;alert(1)"'));
+  assert.doesNotMatch(A.svg('<script>&'), /<script/);
+  // Whitespace inside a seed survives as character references, so the seed
+  // read back from the file draws the same mark.
+  const lines = A.svg('a\tb\nc');
+  assert.ok(lines.includes('data-anvers-seed="a&#9;b&#10;c"'));
+  // Characters XML cannot carry are refused rather than written.
+  for (const bad of ['a\u0001b', 'a￾b', 'a\uD800b', 'a\uDC00']) {
+    assert.throws(() => A.svg(bad), RangeError, JSON.stringify(bad));
+    assert.throws(() => A.svg('anvers', {label: bad}), RangeError, JSON.stringify(bad));
+  }
+  assert.doesNotThrow(() => A.svg('emoji 🟦'));
+});
+
+test('the static files are the default seed, drawn by svg()', () => {
   const html = fs.readFileSync(path.join(ROOT, 'demo', 'index.html'), 'utf8');
-  assert.ok(html.includes(A.svg(A.defaultSeed, {label: ''})),
-    'demo/index.html: regenerate the static mark with bin/anvers-mark.js (see README)');
+  assert.ok(html.includes(A.svg(A.defaultSeed, {label: '', size: 160, align: 'baseline'})),
+    'demo/index.html: regenerate the static mark (see README)');
   const file = fs.readFileSync(path.join(ROOT, 'anvers-default.svg'), 'utf8').trim();
   assert.equal(file, A.svg(A.defaultSeed));
 });
 
-test('the module loads as CommonJS, as an ES module and from the command line', async () => {
+test('the module loads as CommonJS and as an ES module', async () => {
   const esm = await import(path.join(ROOT, 'anvers-identity.mjs'));
   assert.equal(esm.default.describe('anvers').d, A.describe('anvers').d);
   assert.equal(typeof esm.render, 'function');
-  const out = execFileSync(process.execPath, [path.join(ROOT, 'bin', 'anvers-mark.js'), 'anvers'], {encoding: 'utf8'});
-  assert.equal(out.trim(), A.svg('anvers'));
-  const json = JSON.parse(execFileSync(process.execPath,
-    [path.join(ROOT, 'bin', 'anvers-mark.js'), 'anvers', '--json', '--shape', 'circle'], {encoding: 'utf8'}));
+  assert.equal(require.resolve(path.join(ROOT, 'package.json')).length > 0, true);
+});
+
+test('the command line: seeds, options, the README example, errors', () => {
+  assert.equal(cli(['anvers']).stdout.trim(), A.svg('anvers'));
+  const readme = cli(['k3f9q2xa', '--background', 'paper', '--size', '1024']);
+  assert.equal(readme.status, 0);
+  assert.equal(readme.stdout.trim(), A.svg('k3f9q2xa', {background: 'paper', size: 1024}));
+  assert.equal(cli(['anvers', '--align=baseline', '--colour', 'red', '--scheme', 'dark']).stdout.trim(),
+               A.svg('anvers', {align: 'baseline', colour: 'red', scheme: 'dark'}));
+  const json = JSON.parse(cli(['anvers', '--json', '--shape', 'circle']).stdout);
   assert.equal(json.shape, 'circle');
+  // Without a seed, or with 'random' or 'daily', the seed drawn is reported
+  // and the output is that seed's mark.
+  for (const args of [[], ['random'], ['daily']]) {
+    const run = cli(args);
+    const seed = /^seed (\S+)$/m.exec(run.stderr)[1];
+    assert.equal(run.stdout.trim(), A.svg(seed), args.join(' '));
+  }
+  assert.match(cli(['daily']).stderr, /^seed day-\d{4}-\d\d-\d\d$/m);
+  for (const args of [['anvers', '--size', 'abc'], ['anvers', '--background', 'toString'],
+                      ['anvers', '--shape', 'hexagon'], ['anvers', '--bogus'], ['a', 'b']]) {
+    const run = cli(args);
+    assert.equal(run.status, 2, args.join(' '));
+    assert.equal(run.stdout, '');
+  }
+  const mode = fs.statSync(CLI).mode;
+  assert.ok(mode & 0o111, 'bin/anvers-mark.js is executable');
 });
 
 test('the source stays dependency-free and CSP-safe', () => {

@@ -1,13 +1,14 @@
 // Preview harness only. A seed in the address (?seed=...) is drawn instead of
-// a random one, ?motion=none turns the settle motion off, "Another" draws a
-// new seed, and searches are shown rather than sent anywhere.
+// a random one, ?motion=settle turns the one optional motion on, "Draw
+// another" draws a new seed, and searches are shown rather than sent anywhere.
 'use strict';
 
 (function () {
   const identity = document.querySelector('[data-anvers-identity]');
   const params = new URLSearchParams(location.search);
   if (identity && params.get('seed')) identity.dataset.seed = params.get('seed');
-  if (identity && params.get('motion') === 'none') identity.dataset.motion = 'none';
+  const motion = params.get('motion') === 'settle' ? 'settle' : 'none';
+  if (identity) identity.dataset.motion = motion;
 
   const seedOut = document.getElementById('seed');
   const status = document.getElementById('status');
@@ -32,10 +33,11 @@
       const mark = window.AnversIdentity.render(identity, {
         seed: window.AnversIdentity.newSeed(),
         wordmark: true,
-        motion: identity.dataset.motion === 'none' ? 'none' : 'settle',
+        motion,
       });
       showSeed(mark.seed);
     });
+    document.querySelector('.home__seed').removeAttribute('data-pending');
 
     document.querySelector('.home__search').addEventListener('submit', event => {
       event.preventDefault();

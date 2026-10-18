@@ -1,6 +1,7 @@
 // Rewrites test/golden.json and anvers-default.svg from the current grammar.
 // Run it only on purpose, after raising GRAMMAR in anvers-identity.js: the
-// golden test exists to catch a change that would redraw existing seeds.
+// golden test exists to catch a change that would redraw existing seeds,
+// palette included.
 'use strict';
 
 const fs = require('node:fs');
@@ -16,8 +17,10 @@ for (const seed of SEEDS) {
 }
 const shapes = new Set(Object.values(marks).map(m => m.shape));
 if (shapes.size !== A.shapes.length) throw new Error('golden seeds must cover every shape');
+const baseline = {};
+for (const seed of SEEDS.slice(0, 3)) baseline[seed] = A.describe(seed, {align: 'baseline'}).d;
 
 fs.writeFileSync(path.join(__dirname, 'golden.json'),
-                 JSON.stringify({grammar: A.grammar, marks}, null, 2) + '\n');
+                 JSON.stringify({grammar: A.grammar, palette: A.palette, marks, baseline}, null, 2) + '\n');
 fs.writeFileSync(path.join(__dirname, '..', 'anvers-default.svg'), A.svg(A.defaultSeed) + '\n');
 process.stdout.write(`golden.json and anvers-default.svg written for grammar ${A.grammar}\n`);
