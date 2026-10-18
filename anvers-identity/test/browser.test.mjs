@@ -68,6 +68,13 @@ const TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.
 function serve() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    // A full browser (Anvers itself, or Chromium outside the headless shell)
+    // asks every origin for a favicon. The pages declare none, so the harness
+    // answers with no content rather than a 404 the console would report.
+    if (url.pathname === '/favicon.ico') {
+      res.writeHead(204).end();
+      return;
+    }
     const file = path.resolve(ROOT, '.' + decodeURIComponent(url.pathname));
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404).end();
@@ -121,7 +128,11 @@ async function open(options, url) {
   const context = await browser.newContext(options);
   const page = await context.newPage();
   const problems = [];
-  page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') problems.push(m.text()); });
+  page.on('console', m => {
+    if (m.type() !== 'error' && m.type() !== 'warning') return;
+    const where = m.location() && m.location().url;
+    problems.push(where ? `${m.text()} (${where})` : m.text());
+  });
   page.on('pageerror', e => problems.push(String(e)));
   if (url) await page.goto(url);
   const close = async (expected = 0, where = '') => {

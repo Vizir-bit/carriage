@@ -38,3 +38,12 @@ jobs:
           node --test test/browser.test.mjs | tee browser.log
           # Only the previews may be skipped here.
           grep -qx '# skipped 1' browser.log
+      - name: Browser tests in full Chromium
+        # The default run uses Playwright's headless shell; a full browser
+        # behaves like the installed Anvers (it asks for a favicon, for one).
+        run: |
+          set -o pipefail
+          ANVERS_CHROMIUM="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          export ANVERS_CHROMIUM
+          node --test test/browser.test.mjs | tee browser-full.log
+          grep -qx '# skipped 1' browser-full.log
