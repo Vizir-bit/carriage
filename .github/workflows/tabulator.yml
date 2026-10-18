@@ -89,10 +89,6 @@ jobs:
             plutil -convert xml1 "$f"
             sed -i '' 's/Carriage/Tabulator/g' "$f"
           done
-          # Menus, dialogs and settings: "Quit Tabulator"
-          python3 scripts/tabulator_rename.py "$res" \
-            || echo "::warning::Localised strings not renamed; menus still say Carriage"
-
           # New tab page: the operator's console
           python3 scripts/tabulator_ntp_patch.py "$res/resources.pak" "$chromium"
 
@@ -183,7 +179,7 @@ jobs:
           printf '%s\n' \
             "Tabulator — a browser styled after the first IBM machines, as a separate app next to Carriage. Same browser as $SOURCE_TAG: Helium $VERSION / Chromium $CHROMIUM (ungoogled-chromium), uBlock Origin included." "" \
             "- New tab page: an operator's console after the IBM 650 (1954). Neon lamps in bi-quinary code show the date and time and the clocks of London, Paris, Roma and Moscow; Power and Network lamps; an 80-column punched card carries the engine version and today's date in Hollerith code. Nothing on the page goes to the network." \
-            "- Its own name, icon, menus (Quit Tabulator) and profile folder (~/Library/Application Support/app.tabulator.browser): bookmarks, history and extensions are kept apart from Carriage." \
+            "- Its own name, icon and profile folder (~/Library/Application Support/app.tabulator.browser): bookmarks, history and extensions are kept apart from Carriage." \
             "- $toolbar" \
             "- Not signed by Apple: the first time, right-click Tabulator in Applications and choose Open." "" \
             "sha256: $SHA" > notes.md

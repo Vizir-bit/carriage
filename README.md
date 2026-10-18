@@ -27,9 +27,9 @@ Upstream Helium macOS: see `README.helium.md` and https://github.com/imputnet/he
 ## Tabulator
 
 A sibling app styled after the first IBM machines: the same Chromium browser,
-repackaged from a Carriage release with its own name, icon, menus and profile
-folder, and a new tab page drawn as an IBM 650-style console of neon lamps
-with an 80-column punched card. See `docs/TABULATOR.md`;
+repackaged from a Carriage release with its own name, icon and profile folder,
+and a new tab page drawn as an IBM 650-style console of neon lamps with an
+80-column punched card. See `docs/TABULATOR.md`;
 `.github/workflows/tabulator.yml` makes a release.
 
 ## Licence
