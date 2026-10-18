@@ -1,6 +1,6 @@
 {
   "name": "anvers-identity",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Anvers identity: one geometric shape, coloured at random and distorted within bounds, from a reproducible seed.",
   "type": "commonjs",

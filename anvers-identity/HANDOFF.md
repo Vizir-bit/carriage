@@ -10,7 +10,7 @@ Established: in this work I downloaded no Chromium build, built no engine, and c
 
 ## Where to review
 
-Repository `Vizir-bit/carriage`, branch `essex/festive-allen-0wrl8b`, draft pull request 2. The commit that adds this file is the one to review; the exact hash is given in the pull request and in Claude's reply. Grammar 1 (commit `3205963`) was the review draft and is superseded.
+Repository `Vizir-bit/carriage`, branch `essex/festive-allen-0wrl8b`, draft pull request 2. Review the branch's latest commit; the exact hash is given in the pull request and in Claude's reply. The component is at grammar 3. Grammars 1 and 2 (commits `3205963` and `db116fb`) were review drafts and are superseded: each went through an adversarial review whose confirmed findings the next commit addresses.
 
 ## What to integrate
 
@@ -27,7 +27,7 @@ The unit tests need only Node. Run them from the folder with `node --test test/u
 
 The browser tests need Playwright (`npm install --no-save --no-package-lock playwright@1.56.1`). They can drive Anvers itself: set `ANVERS_CHROMIUM` to the executable inside the bundle and run `node --test test/browser.test.mjs`. Inferred: for a plain Chromium bundle that executable is `Contents/MacOS/Chromium` inside the app, unless packaging renamed it. The suite prints the browser version first, so a run in Anvers is distinguishable from a run in Playwright's own Chromium. With `ANVERS_CHROMIUM` set, a missing Playwright fails the run instead of skipping it.
 
-Established, here: 21 unit tests and 16 browser tests pass in Playwright's Chromium 141 on Linux. Not established: macOS, Futura (absent on Linux, so the previews show a fallback face), and Chromium 158.
+Established, here: 21 unit tests and 18 browser tests pass in Playwright's Chromium 141 on Linux, and each of twenty deliberate faults makes them fail. Not established: macOS, Futura (absent on Linux, so the previews show a fallback face), and Chromium 158.
 
 ## Outside this component
 

@@ -96,6 +96,8 @@ function ratio(a, b) {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
 
+const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+
 let browser, server, base;
 
 test.before(async () => {
@@ -186,7 +188,7 @@ test('layout: long labels and seeds wrap at 320 pixels instead of overflowing', 
     const li = document.createElement('li');
     const a = document.createElement('a');
     a.href = 'https://example.org/';
-    a.textContent = 'Donaudampfschifffahrtsgesellschaftskapitän';
+    a.textContent = 'Donaudampfschifffahrtsgesellschaftskapit\u00e4n';
     li.append(a);
     document.querySelector('.home__links ul').append(li);
   });
@@ -201,30 +203,59 @@ test('layout: long labels and seeds wrap at 320 pixels instead of overflowing', 
   await close();
 });
 
-test('lockup: the gap between shape and wordmark is the same for every seed', {skip}, async () => {
+test('lockup: one gap for every seed, the word centred and grouped with the mark', {skip}, async () => {
   const gaps = [];
   for (const seed of [...LAYOUT_SEEDS, 'anvers', 'k3f9q2xa']) {
     const {page, close} = await open({viewport: {width: 1440, height: 900}}, `${base}/demo/index.html?seed=${seed}`);
     await page.waitForSelector(`${HOST}[data-anvers-seed="${seed}"]`);
-    gaps.push(await page.evaluate(() => {
+    const r = await page.evaluate(() => {
+      const svg = document.querySelector('.home__identity svg').getBoundingClientRect();
       const shape = document.querySelector('.home__identity path').getBoundingClientRect();
-      const word = document.querySelector('.anvers-identity__wordmark').getBoundingClientRect();
-      return word.top - shape.bottom;
-    }));
+      const wordEl = document.querySelector('.anvers-identity__wordmark');
+      const word = wordEl.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(wordEl);
+      const text = range.getBoundingClientRect();
+      const tracking = parseFloat(getComputedStyle(wordEl).letterSpacing);
+      const field = document.getElementById('q').getBoundingClientRect();
+      return {gap: word.top - shape.bottom, after: field.top - word.bottom,
+              offCentre: text.left + (text.width - tracking) / 2 - (svg.left + svg.width / 2)};
+    });
+    gaps.push(r.gap);
+    assert.ok(Math.abs(r.offCentre) < 0.5, `${seed}: word off centre by ${r.offCentre}`);
+    assert.ok(r.gap / r.after < 0.6, `${seed}: word ${r.gap.toFixed(1)} from the mark, ${r.after.toFixed(1)} from the search`);
     await close();
   }
   for (const g of gaps) assert.ok(Math.abs(g - gaps[0]) < 1, `gaps ${gaps.map(x => x.toFixed(1))}`);
 });
 
-test('without the stylesheet the mark keeps a sane size', {skip}, async () => {
-  const {page, close} = await open({viewport: {width: 1440, height: 900}});
-  await page.route('**/anvers-identity.css', route => route.abort());
-  await page.goto(`${base}/demo/index.html?seed=anvers`);
-  await page.waitForSelector(`${HOST}[data-anvers-seed="anvers"]`);
-  const size = await page.evaluate(() => document.querySelector('.home__identity svg').getBoundingClientRect().width);
-  assert.ok(size <= 160.5, `mark ${size}px`);
-  // The aborted stylesheet is the one problem expected here.
-  await close(1);
+test('without any stylesheet the mark keeps its own size and the scheme\'s fill', {skip}, async () => {
+  const colour = A.describe('anvers').colour;
+  for (const scheme of SCHEMES) {
+    const {page, close} = await open({viewport: {width: 1440, height: 900}, colorScheme: scheme});
+    await page.route('**/*.css', route => route.abort());
+    await page.goto(`${base}/demo/index.html?seed=anvers`);
+    await page.waitForSelector(`${HOST}[data-anvers-seed="anvers"]`);
+    const r = await page.evaluate(() => {
+      const svg = document.querySelector('.home__identity svg');
+      const b = svg.getBoundingClientRect();
+      return {w: b.width, h: b.height, fill: getComputedStyle(svg.querySelector('path')).fill,
+              field: document.getElementById('q').getBoundingClientRect().bottom, inner: innerHeight};
+    });
+    assert.ok(Math.abs(r.w - 160) < 0.5 && Math.abs(r.h - 160) < 0.5, `${scheme}: ${r.w} x ${r.h}`);
+    assert.equal(r.fill, rgb(A.palette[scheme][colour]), scheme);
+    assert.ok(r.field <= r.inner, `${scheme}: search pushed below the fold`);
+    await close(2);   // the two stylesheets refused
+  }
+  // A bare page: no stylesheet at all, the script alone.
+  const bare = await open({viewport: {width: 1440, height: 900}});
+  await bare.page.route('**/bare.html', route => route.fulfill({contentType: 'text/html', body:
+    '<!doctype html><div data-anvers-identity data-seed="anvers"></div><script src="/anvers-identity.js"></script>'}));
+  await bare.page.goto(`${base}/bare.html`);
+  await bare.page.waitForSelector('[data-anvers-identity][data-anvers-seed="anvers"]');
+  const width = await bare.page.evaluate(() => document.querySelector('svg').getBoundingClientRect().width);
+  assert.ok(Math.abs(width - 160) < 0.5, `bare page: ${width}`);
+  await bare.close();
 });
 
 test('accessibility: names, landmarks, the whole focus order, sizes, contrast', {skip}, async () => {
@@ -290,6 +321,14 @@ test('wordmark size follows the reader, and phones get a 96-pixel mark', {skip},
   await session.send('Page.setFontSizes', {fontSizes: {standard: 24}});
   await page.waitForTimeout(50);
   assert.equal((await measure()).word, 24);
+  await session.send('Page.setFontSizes', {fontSizes: {standard: 16}});
+  // 160 at most, 24 % of the smaller side in between.
+  for (const [width, height, mark] of [[1440, 900, 160], [1024, 500, 120], [568, 320, 96]]) {
+    await page.setViewportSize({width, height});
+    await page.waitForTimeout(50);
+    const got = (await measure()).mark;
+    assert.ok(Math.abs(got - mark) < 0.5, `${width}x${height}: ${got}`);
+  }
   await close();
 });
 
@@ -344,11 +383,55 @@ test('declarative attributes, and one bad element does not stop the others', {sk
   await close(1);
 });
 
+test('auto-mount: an element added before load is drawn, a bad one reported once', {skip}, async () => {
+  const {page, close} = await open({});
+  await page.route('**/adder.js', route => route.fulfill({contentType: 'text/javascript', body:
+    "document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('span'); " +
+    "s.id = 'late'; s.setAttribute('data-anvers-identity', ''); s.dataset.seed = 'anvers'; document.body.append(s); });"}));
+  await page.route('**/slow.png', async route => {
+    await new Promise(r => setTimeout(r, 800));
+    route.fulfill({contentType: 'image/png', body: PIXEL}).catch(() => {});
+  });
+  await page.route('**/auto.html', route => route.fulfill({contentType: 'text/html', body:
+    '<!doctype html><script src="/anvers-identity.js" defer></script><script src="/adder.js" defer></script>' +
+    '<span id="early" data-anvers-identity data-seed="anvers"></span>' +
+    '<span id="bad" data-anvers-identity data-shape="hexagon">fallback</span><img src="/slow.png" alt="">'}));
+  await page.goto(`${base}/auto.html`);
+  await page.waitForTimeout(100);
+  const r = await page.evaluate(() => ({
+    early: document.getElementById('early').dataset.anversSeed,
+    late: document.getElementById('late').dataset.anversSeed,
+    bad: document.getElementById('bad').textContent,
+  }));
+  assert.deepEqual(r, {early: 'anvers', late: 'anvers', bad: 'fallback'});
+  await close(1);   // the bad element, reported once
+});
+
+test('the module also loads in workers, classic and module', {skip}, async () => {
+  const {page, close} = await open({});
+  await page.route('**/worker.html', route => route.fulfill({contentType: 'text/html', body: '<!doctype html><title>w</title>'}));
+  await page.goto(`${base}/worker.html`);
+  const r = await page.evaluate(() => {
+    const run = (code, type) => new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(new Blob([code], {type: 'text/javascript'}));
+      const worker = new Worker(url, type ? {type} : undefined);
+      worker.onmessage = e => resolve(e.data);
+      worker.onerror = e => reject(new Error(e.message));
+    });
+    const origin = location.origin;
+    return Promise.all([
+      run(`importScripts('${origin}/anvers-identity.js'); postMessage(self.AnversIdentity.describe('anvers').d);`),
+      run(`import A from '${origin}/anvers-identity.mjs'; postMessage(A.describe('anvers').d);`, 'module'),
+    ]);
+  });
+  assert.deepEqual(r, [A.describe('anvers').d, A.describe('anvers').d]);
+  await close();
+});
+
 test('loading late, or next to a global `module`, still mounts at once', {skip}, async () => {
   // A page whose load event waits on a slow image; the script is injected
   // after DOMContentLoaded, so it must mount without waiting for load.
   const {page, close} = await open({});
-  const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
   await page.route('**/slow.png', async route => {
     await new Promise(r => setTimeout(r, 2500));
     route.fulfill({contentType: 'image/png', body: PIXEL}).catch(() => {});
@@ -408,6 +491,26 @@ test('reduced motion: the mark is drawn in place, by the script and by the style
   }));
   assert.deepEqual(css, {animated: false, animations: 0, inline: ''});
   await close();
+  // And the other way round: remove the stylesheet's rule, so that only the
+  // script's own check stands between the preference and the motion.
+  const alone = await open({reducedMotion: 'reduce'}, `${base}/demo/index.html?seed=anvers-17`);
+  await alone.page.waitForSelector(`${HOST}[data-anvers-seed="anvers-17"]`);
+  const script = await alone.page.evaluate(() => new Promise(resolve => {
+    for (const sheet of document.styleSheets) {
+      for (let i = sheet.cssRules.length - 1; i >= 0; i--) {
+        const rule = sheet.cssRules[i];
+        if (rule.media && rule.media.mediaText.includes('prefers-reduced-motion')) sheet.deleteRule(i);
+      }
+    }
+    const el = document.createElement('span');
+    document.querySelector('main').append(el);
+    const mark = window.AnversIdentity.render(el, {seed: 'w', motion: 'settle'});
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      resolve({animated: mark.animated, animations: document.getAnimations().length,
+               inline: el.querySelector('path').style.getPropertyValue('d')})));
+  }));
+  assert.deepEqual(script, {animated: false, animations: 0, inline: ''});
+  await alone.close();
 });
 
 test('motion, when asked for and allowed: one settle from the primitive, then still', {skip}, async () => {
@@ -439,6 +542,25 @@ test('motion, when asked for and allowed: one settle from the primitive, then st
     return out;
   });
   assert.deepEqual(cases, {hidden: [false, ''], detached: [false, '']});
+  // A settle cancelled while running, or hidden before its first frame,
+  // leaves nothing behind.
+  const leftovers = await page.evaluate(() => new Promise(resolve => {
+    const twoFrames = f => requestAnimationFrame(() => requestAnimationFrame(f));
+    const running = document.createElement('span');
+    const early = document.createElement('span');
+    document.querySelector('main').append(running, early);
+    window.AnversIdentity.render(running, {seed: 'y', motion: 'settle'});
+    window.AnversIdentity.render(early, {seed: 'z', motion: 'settle'});
+    early.style.display = 'none';
+    twoFrames(() => {
+      const animations = document.getAnimations().length;
+      running.style.display = 'none';
+      twoFrames(() => resolve({animations,
+        running: running.querySelector('path').style.getPropertyValue('d'),
+        early: early.querySelector('path').style.getPropertyValue('d')}));
+    });
+  }));
+  assert.deepEqual(leftovers, {animations: 1, running: '', early: ''});
   await close();
 });
 
@@ -464,6 +586,14 @@ test('without JavaScript the static default stands, in the same box', {skip}, as
   for (const k of ['x', 'y', 'w', 'h']) assert.ok(Math.abs(staticBox[k] - liveBox[k]) < 0.5, `layout shift in ${k}`);
   await on.page.getByRole('button', {name: 'Draw another'}).waitFor();
   await on.close();
+  // With the identity script missing, the demo does not offer a button that
+  // could not work.
+  const missing = await open(size);
+  await missing.page.route('**/anvers-identity.js', route => route.abort());
+  await missing.page.goto(`${base}/demo/index.html`);
+  await missing.page.waitForLoadState('load');
+  assert.equal(await missing.page.getByRole('button', {name: 'Draw another'}).count(), 0);
+  await missing.close(1);   // the refused script
 });
 
 test('every colour, in both schemes, under theme pins, more contrast and forced colours', {skip}, async () => {
@@ -471,13 +601,13 @@ test('every colour, in both schemes, under theme pins, more contrast and forced 
     const {page, close} = await open(options, `${base}/demo/index.html?seed=anvers`);
     await page.waitForSelector(`${HOST}[data-anvers-seed="anvers"]`);
     const out = await page.evaluate(setup => {
-      if (setup === 'root-light') document.documentElement.dataset.anversTheme = 'light';
+      if (setup === 'root-light' || setup === 'nested') document.documentElement.dataset.anversTheme = 'light';
       if (setup === 'root-dark') document.documentElement.dataset.anversTheme = 'dark';
       const result = {};
       for (const colour of window.AnversIdentity.colours) {
         const el = document.createElement('span');
         if (setup === 'element-light') el.dataset.anversTheme = 'light';
-        if (setup === 'element-dark') el.dataset.anversTheme = 'dark';
+        if (setup === 'element-dark' || setup === 'nested') el.dataset.anversTheme = 'dark';
         document.querySelector('main').append(el);
         window.AnversIdentity.render(el, {seed: 'x', colour});
         result[colour] = getComputedStyle(el.querySelector('path')).fill;
@@ -497,7 +627,16 @@ test('every colour, in both schemes, under theme pins, more contrast and forced 
   }
   assert.deepEqual(await fills({colorScheme: 'light', contrast: 'more'}), expect('light', true));
   assert.deepEqual(await fills({colorScheme: 'dark', contrast: 'more'}), expect('dark', true));
-  assert.deepEqual(await fills({colorScheme: 'dark', contrast: 'more'}, 'root-light'), expect('light', true));
+  for (const where of ['root', 'element']) {
+    assert.deepEqual(await fills({colorScheme: 'dark', contrast: 'more'}, `${where}-light`), expect('light', true),
+                     `${where} light pin, more contrast`);
+    assert.deepEqual(await fills({colorScheme: 'light', contrast: 'more'}, `${where}-dark`), expect('dark', true),
+                     `${where} dark pin, more contrast`);
+  }
+  // Pins are not nested: where a dark pin applies, it wins, with or without
+  // more contrast.
+  assert.deepEqual(await fills({colorScheme: 'light'}, 'nested'), expect('dark'));
+  assert.deepEqual(await fills({colorScheme: 'light', contrast: 'more'}, 'nested'), expect('dark', true));
   const forced = await fills({forcedColors: 'active'});
   for (const c of A.colours) assert.ok(!Object.values(expect('light')).includes(forced[c]), `forced ${forced[c]}`);
 });

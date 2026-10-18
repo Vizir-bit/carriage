@@ -27,23 +27,26 @@
   // anvers-identity.js registered its own DOMContentLoaded listener first,
   // so the mark is drawn by the time this one runs.
   document.addEventListener('DOMContentLoaded', () => {
-    if (identity && identity.dataset.anversSeed) showSeed(identity.dataset.anversSeed);
-
-    document.getElementById('reroll').addEventListener('click', () => {
-      const mark = window.AnversIdentity.render(identity, {
-        seed: window.AnversIdentity.newSeed(),
-        wordmark: true,
-        motion,
+    // Without the identity script there is nothing to draw another with,
+    // so the seed line stays unseen.
+    if (window.AnversIdentity && identity && identity.dataset.anversSeed) {
+      showSeed(identity.dataset.anversSeed);
+      document.getElementById('reroll').addEventListener('click', () => {
+        const mark = window.AnversIdentity.render(identity, {
+          seed: window.AnversIdentity.newSeed(),
+          wordmark: true,
+          motion,
+        });
+        showSeed(mark.seed);
       });
-      showSeed(mark.seed);
-    });
-    document.querySelector('.home__seed').removeAttribute('data-pending');
+      document.querySelector('.home__seed').removeAttribute('data-pending');
+    }
 
     document.querySelector('.home__search').addEventListener('submit', event => {
       event.preventDefault();
       const query = document.getElementById('q').value.trim();
       status.textContent = query
-        ? `Preview: a search for “${query}” would be sent by Anvers's own Home page.`
+        ? `Preview: a search for \u201C${query}\u201D would be sent by Anvers's own Home page.`
         : 'Preview: type something to search.';
     });
   }, {once: true});

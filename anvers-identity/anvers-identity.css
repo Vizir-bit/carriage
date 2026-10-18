@@ -18,7 +18,7 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(var(--anvers-mark-size) * 0.08);
+  gap: 0;
   max-inline-size: 100%;
   vertical-align: top;
 }
@@ -46,6 +46,10 @@
   letter-spacing: 0.18em;
   /* The tracking adds space after the last letter; this keeps it centred. */
   margin-inline-start: 0.18em;
+  /* With the wordmark the shape stands on 88 of its 100-unit box, so the
+     band below is always empty: drawing the word slightly into it makes
+     shape and word one group, closer to each other than to what follows. */
+  margin-block-start: calc(var(--anvers-mark-size) * -0.03);
   text-transform: lowercase;
   color: inherit;
 }
@@ -73,8 +77,10 @@
   --anvers-blue: #538ae6;
 }
 
-/* Asked for more contrast on a light page, yellow darkens to ochre (3.6:1
-   on paper); red and blue already pass, and every colour passes on dark. */
+/* Asked for more contrast on a light page, yellow darkens to ochre (3.45:1
+   on paper, 3.6:1 on the demo page); red and blue already pass, and every
+   colour passes on dark. Pins are not nested: where a dark pin applies, on
+   the element or above it, it wins, with or without more contrast. */
 @media (prefers-contrast: more) and (prefers-color-scheme: light) {
   .anvers-identity {
     --anvers-yellow: #a87700;
@@ -82,8 +88,8 @@
 }
 
 @media (prefers-contrast: more) {
-  [data-anvers-theme="light"] .anvers-identity,
-  .anvers-identity[data-anvers-theme="light"] {
+  [data-anvers-theme="light"] .anvers-identity:not([data-anvers-theme="dark"] *):not([data-anvers-theme="dark"]),
+  .anvers-identity[data-anvers-theme="light"]:not([data-anvers-theme="dark"] *) {
     --anvers-yellow: #a87700;
   }
 }

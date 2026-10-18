@@ -16,20 +16,19 @@
 (function (root, factory) {
   'use strict';
   const api = factory(root);
-  if (typeof module === 'object' && module && module.exports) module.exports = api;
-  // In a page (even one that defines a global `module`), publish the global
-  // and draw the marks.
-  if (root && root.document) {
-    if (!root.AnversIdentity) root.AnversIdentity = api;
-    api.autoMount(root.document);
-  }
+  const commonjs = typeof module === 'object' && module && module.exports;
+  if (commonjs) module.exports = api;
+  // Everywhere but plain CommonJS (pages, workers, a page that happens to
+  // define a global `module`), publish the global; in a page, draw the marks.
+  if (root && (!commonjs || root.document) && !root.AnversIdentity) root.AnversIdentity = api;
+  if (root && root.document) api.autoMount(root.document);
 }(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
-  const VERSION = '2.0.0';
-  // Grammar 1 was the review draft of 18 October 2026 (commit 3205963); it
-  // was replaced before any integration.
-  const GRAMMAR = 2;
+  const VERSION = '3.0.0';
+  // Grammars 1 and 2 were review drafts of 18 October 2026 (commits 3205963
+  // and db116fb), replaced before any integration.
+  const GRAMMAR = 3;
   const DEFAULT_SEED = 'anvers';
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -73,16 +72,19 @@
 
   // A polygon too close to its regular form after distortion is redrawn with
   // its vertex shifts mirrored and, if it is still too regular, with the
-  // shear at its ceiling (deterministic, no extra draw). Regular enough to
-  // redraw: every angle within `angle` degrees of the regular one and, for
-  // the square, sides within `sides` of each other.
+  // shear at its ceiling (deterministic, no extra draw). Too regular: every
+  // angle within `angle` degrees of the regular one and, for the square,
+  // sides within `sides` of each other, or every corner within `right`
+  // degrees of a right angle (a plain rectangle reads as another shape).
   const FLOOR = Object.freeze({
     triangle: Object.freeze({angle: 8}),
-    square: Object.freeze({angle: 8, sides: 1.2}),
+    square: Object.freeze({angle: 8, sides: 1.2, right: 5}),
   });
 
-  // Equal areas do not look equal: a circle and a triangle read smaller than
-  // a square of the same area, so they get a little more.
+  // Equal areas do not look equal: a circle reads smaller than a square of
+  // the same area, so it gets more; a triangle spreads wider and taller
+  // (median box about 72 x 67 against 58 x 56 for the square), so it gets
+  // less.
   const TARGET_AREA = Object.freeze({circle: 2800, square: 2500, triangle: 2300});
 
   const SAMPLES_PER_CURVE = 48;
@@ -144,14 +146,14 @@
   // 'random' (or nothing) draws a new seed, 'daily' gives one seed per local
   // calendar day, anything else is the seed itself.
   function resolveSeed(input, now) {
-    if (input === undefined || input === null || input === 'random') return newSeed();
-    if (input === 'daily') {
+    const seed = input === undefined || input === null ? '' : clean(input);
+    if (seed === '' || seed === 'random') return newSeed();
+    if (seed === 'daily') {
       const day = now instanceof Date ? now : new Date();
       const pad = n => String(n).padStart(2, '0');
       return `day-${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
     }
-    const seed = clean(input);
-    return seed === '' ? newSeed() : seed;
+    return seed;
   }
 
   // ---- Geometry ----------------------------------------------------------
@@ -244,7 +246,7 @@
       const q = points[(i + 1) % points.length];
       return Math.hypot(q[0] - p[0], q[1] - p[1]);
     });
-    return offAngle < floor.angle && Math.max(...sides) / Math.min(...sides) < floor.sides;
+    return offAngle < floor.right || (offAngle < floor.angle && Math.max(...sides) / Math.min(...sides) < floor.sides);
   }
 
   // The distorted unit outline for a shape and a set of draws, with the
@@ -394,7 +396,7 @@
 
   // Characters XML 1.0 cannot carry at all: C0 controls other than tab, line
   // feed and carriage return, U+FFFE, U+FFFF and unpaired surrogates.
-  const XML_INVALID = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const XML_INVALID = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
   const ESCAPES = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
                    '\t': '&#9;', '\n': '&#10;', '\r': '&#13;'};
   function escapeXml(text, what) {
@@ -413,7 +415,8 @@
     const mark = describe(seed, opts);
     const label = opts.label === undefined ? 'Anvers' : String(opts.label);
     const scheme = opts.scheme === 'dark' ? 'dark' : 'light';
-    const background = opts.background === undefined ? 'none' : opts.background;
+    const background = opts.background === undefined || opts.background === null || opts.background === ''
+      ? 'none' : opts.background;
     if (background !== 'none' && !Object.prototype.hasOwnProperty.call(GROUNDS, background)) {
       throw new RangeError(`AnversIdentity: background must be none, paper or ink; got ${background}`);
     }
@@ -444,8 +447,26 @@
     }
   }
 
+  // Fails safe: if the preference cannot be read, motion is treated as
+  // unwanted.
   function reducedMotion(win) {
-    return !win || typeof win.matchMedia !== 'function' || matches(win, '(prefers-reduced-motion: reduce)');
+    try {
+      return !win || typeof win.matchMedia !== 'function' ||
+        win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // Whether the computed transition really animates 'd': the duration is
+  // read at the index of the last entry naming 'd' (or 'all'), the list of
+  // durations repeating as CSS repeats it.
+  function transitionsD(style) {
+    const props = String(style.transitionProperty).split(',').map(p => p.trim());
+    const durations = String(style.transitionDuration).split(',').map(t => parseFloat(t) || 0);
+    let index = -1;
+    props.forEach((p, i) => { if (p === 'd' || p === 'all') index = i; });
+    return index >= 0 && durations.length > 0 && durations[index % durations.length] > 0;
   }
 
   // The one optional motion: the pure primitive settles into its distortion,
@@ -459,8 +480,7 @@
     path.style.setProperty('d', `path("${mark.base}")`);
     const style = win.getComputedStyle(path);
     style.getPropertyValue('d');
-    const runs = /(^|,)\s*(d|all)\s*(,|$)/.test(style.transitionProperty) &&
-      parseFloat(style.transitionDuration) > 0 && path.getClientRects().length > 0;
+    const runs = transitionsD(style) && path.getClientRects().length > 0;
     if (!runs) {
       path.style.removeProperty('d');
       return false;
@@ -552,39 +572,43 @@
 
   // Renders every [data-anvers-identity] element under scope that has not
   // been rendered yet. An element whose attributes are wrong keeps its static
-  // fallback and the error is reported on the console.
-  function mountAll(scope) {
+  // fallback and the error is reported on the console; elements in `skip`
+  // (a WeakSet) are left alone, and failures are added to it.
+  function mountAll(scope, skip) {
     const marks = [];
     if (!scope || typeof scope.querySelectorAll !== 'function') return marks;
+    if (!skip || typeof skip.has !== 'function') skip = null;
     scope.querySelectorAll('[data-anvers-identity]').forEach(el => {
-      if (el.hasAttribute('data-anvers-seed')) return;
+      if (el.hasAttribute('data-anvers-seed') || (skip && skip.has(el))) return;
       try {
         marks.push(render(el, optionsFrom(el)));
       } catch (e) {
+        if (skip) skip.add(el);
         if (root.console) root.console.error(e);
       }
     });
     return marks;
   }
 
-  // Mounts once the document is parsed, after any deferred script that sets
-  // data attributes first; at once if the script arrives later than that.
+  // Mounts when the document is parsed, after any deferred script that sets
+  // data attributes first (at once if the script arrives later than that),
+  // and again at load for elements added in between; each failing element is
+  // reported once.
   function autoMount(doc) {
     if (!doc || typeof doc.addEventListener !== 'function') return;
-    let done = false;
-    const run = () => {
-      if (done) return;
-      done = true;
-      mountAll(doc);
-    };
+    const failed = typeof WeakSet === 'function' ? new WeakSet() : null;
+    const run = () => mountAll(doc, failed);
     const win = doc.defaultView;
     const perf = win && win.performance;
     const nav = perf && typeof perf.getEntriesByType === 'function' ? perf.getEntriesByType('navigation')[0] : null;
-    if (doc.readyState === 'complete' || (nav && nav.domContentLoadedEventEnd > 0)) {
+    if (doc.readyState === 'complete') {
       run();
       return;
     }
-    doc.addEventListener('DOMContentLoaded', run, {once: true});
+    // DOMContentLoaded already under way or over: a listener added now would
+    // not be called.
+    if (nav && nav.domContentLoadedEventStart > 0) run();
+    else doc.addEventListener('DOMContentLoaded', run, {once: true});
     if (win) win.addEventListener('load', run, {once: true});
   }
 

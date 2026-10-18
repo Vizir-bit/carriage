@@ -99,7 +99,7 @@ test('the same seed always gives the same mark, byte for byte', () => {
   assert.equal(A.describe(' padded ').seed, 'padded');
   assert.equal(A.describe(1919).d, A.describe('1919').d);
   // The same visible text draws the same mark, however it is encoded.
-  const nfc = 'Bauhaus café', nfd = 'Bauhaus café';
+  const nfc = 'Bauhaus caf\u00e9', nfd = 'Bauhaus cafe\u0301';
   assert.notEqual(nfc, nfd);
   assert.equal(A.describe(nfd).d, A.describe(nfc).d);
   assert.equal(A.resolveSeed(nfd), nfc);
@@ -112,7 +112,8 @@ test('golden marks and palette: this grammar draws these seeds exactly so', () =
   assert.deepEqual(JSON.parse(JSON.stringify(A.palette)), golden.palette, why);
   for (const [seed, expected] of Object.entries(golden.marks)) {
     const mark = A.describe(seed);
-    assert.deepEqual({shape: mark.shape, colour: mark.colour, d: mark.d}, expected, `seed ${seed}: ${why}`);
+    assert.deepEqual({shape: mark.shape, colour: mark.colour, floor: mark.distortion.floor, d: mark.d}, expected,
+                     `seed ${seed}: ${why}`);
   }
   for (const [seed, d] of Object.entries(golden.baseline)) {
     assert.equal(A.describe(seed, {align: 'baseline'}).d, d, `seed ${seed} on the baseline: ${why}`);
@@ -224,17 +225,35 @@ test('the legibility floor: almost no polygon stays close to its regular form', 
   }
   assert.ok(regular / total < 0.002, `${regular} of ${total} still regular`);
   // The floor is applied deterministically: a seed that needs it, and what
-  // it took, are part of the seed's description.
-  const floors = new Set(seeds.slice(0, 2000).map(s => A.describe(s, {shape: 'triangle'}).distortion.floor));
-  assert.deepEqual([...floors].sort(), ['mirrored', 'none', 'sheared']);
+  // it took, are part of the seed's description; the second step puts the
+  // shear exactly at its ceiling.
+  for (const shape of ['square', 'triangle']) {
+    const floors = new Set();
+    for (const seed of seeds.slice(0, 3000)) {
+      const t = A.describe(seed, {shape}).distortion;
+      floors.add(t.floor);
+      if (t.floor === 'sheared') assert.equal(Math.abs(t.shear), BOUNDS.shear[1], `${seed} ${shape}`);
+    }
+    assert.deepEqual([...floors].sort(), ['mirrored', 'none', 'sheared'], shape);
+  }
+  // A plain rectangle counts as too regular, whatever its sides.
+  assert.equal(G.tooRegular('square', [[0, 0], [30, 0], [30, 20], [0, 20]]), true);
+  assert.equal(G.tooRegular('square', [[0, 0], [30, 0], [36, 20], [6, 20]]), false);
 });
 
-test('the undistorted start has the same commands, so CSS can interpolate it', () => {
+test('the undistorted start has the same commands, and stands where the mark stands', () => {
   for (const seed of seeds.slice(0, 1000)) {
     for (const align of A.aligns) {
       const m = A.describe(seed, {align});
       assert.equal(commands(m.base), commands(m.d));
       assert.equal(numbers(m.base).length, numbers(m.d).length);
+      const outlineOfBase = ring({shape: m.shape, d: m.base});
+      const xs = outlineOfBase.map(p => p[0]), ys = outlineOfBase.map(p => p[1]);
+      if (align === 'baseline') assert.ok(Math.abs(Math.max(...ys) - BASELINE) < 0.02, `${seed} base off the baseline`);
+      if (m.shape !== 'triangle') {
+        assert.ok(Math.abs((Math.min(...xs) + Math.max(...xs)) / 2 - 50) < 0.02, `${seed} base not centred`);
+        if (align === 'centre') assert.ok(Math.abs((Math.min(...ys) + Math.max(...ys)) / 2 - 50) < 0.02, `${seed}`);
+      }
     }
   }
   assert.match(A.describe('x', {shape: 'circle'}).d, /^M [\d.]+ [\d.]+( C( [\d.]+){6}){4} Z$/);
@@ -270,6 +289,9 @@ test('restrained primaries: red and blue hold 4.5:1, yellow is the stated except
     assert.ok(contrast(A.palette.light.yellow, g) >= 1.85);
     assert.ok(contrast('#a87700', g) >= 3);
   }
+  // As stated in the stylesheet and the README.
+  assert.equal(contrast('#a87700', A.grounds.paper).toFixed(2), '3.45');
+  assert.equal(contrast('#a87700', '#f6f4ef').toFixed(1), '3.6');
   for (const g of darkGrounds) {
     for (const c of A.colours) assert.ok(contrast(A.palette.dark[c], g) >= 4.5, `${c} on ${g}`);
   }
@@ -298,13 +320,18 @@ test('the stylesheet carries the same palette in every block', () => {
 });
 
 test('seeds: random, daily and given', () => {
-  const fresh = new Set(Array.from({length: 200}, () => A.newSeed()));
-  assert.equal(fresh.size, 200);
+  const fresh = new Set(Array.from({length: 400}, () => A.newSeed()));
+  assert.equal(fresh.size, 400);
   for (const s of fresh) assert.match(s, /^[0-9a-hjkmnp-tv-z]{8}$/);
+  // All 32 symbols are used (a missing one, by chance, has odds near 1e-43).
+  assert.equal(new Set([...fresh].join('')).size, 32);
   assert.match(A.resolveSeed('random'), /^[0-9a-z]{8}$/);
   assert.match(A.resolveSeed(undefined), /^[0-9a-z]{8}$/);
   assert.match(A.resolveSeed('   '), /^[0-9a-z]{8}$/);
   assert.equal(A.resolveSeed(' k3f9q2xa '), 'k3f9q2xa');
+  // Keywords are recognised after trimming, like seeds.
+  assert.match(A.resolveSeed(' random '), /^[0-9a-z]{8}$/);
+  assert.match(A.resolveSeed('daily\n'), /^day-\d{4}-\d\d-\d\d$/);
   assert.equal(A.resolveSeed(42), '42');
   assert.equal(A.describe('').seed, A.defaultSeed);
 });
@@ -330,6 +357,10 @@ test('svg(): standalone, one accessible name or none, nothing active inside', ()
   assert.match(A.svg('anvers', {label: 'A & <B>'}), /aria-label="A &amp; &lt;B&gt;"/);
   assert.match(A.svg('anvers', {background: 'paper', size: 1024}), /width="1024" height="1024".*<rect width="100" height="100" fill="#f3efe6"\/>/);
   assert.ok(A.svg('anvers', {scheme: 'dark'}).includes(`fill="${A.describe('anvers').fill.dark}"`));
+  // Absent options, however written, mean the default.
+  for (const empty of [undefined, null, '']) {
+    assert.equal(A.svg('anvers', {background: empty, size: empty}), A.svg('anvers'));
+  }
   for (const bad of ['plaid', 'toString', 'constructor', '__proto__']) {
     assert.throws(() => A.svg('anvers', {background: bad}), RangeError, bad);
   }
@@ -349,11 +380,12 @@ test('svg(): hostile or awkward seeds stay inert and round-trip', () => {
   const lines = A.svg('a\tb\nc');
   assert.ok(lines.includes('data-anvers-seed="a&#9;b&#10;c"'));
   // Characters XML cannot carry are refused rather than written.
-  for (const bad of ['a\u0001b', 'a￾b', 'a\uD800b', 'a\uDC00']) {
+  for (const bad of ['a\u0001b', 'a\uFFFEb', 'a\uFFFFb', 'a\uD800b', 'a\uDC00']) {
     assert.throws(() => A.svg(bad), RangeError, JSON.stringify(bad));
     assert.throws(() => A.svg('anvers', {label: bad}), RangeError, JSON.stringify(bad));
   }
-  assert.doesNotThrow(() => A.svg('emoji 🟦'));
+  assert.doesNotThrow(() => A.svg('emoji \uD83D\uDFE6'));
+  assert.doesNotThrow(() => A.svg('na\u00efve \u00bfqu\u00e9? \u00be'));
 });
 
 test('the static files are the default seed, drawn by svg()', () => {
@@ -364,11 +396,18 @@ test('the static files are the default seed, drawn by svg()', () => {
   assert.equal(file, A.svg(A.defaultSeed));
 });
 
-test('the module loads as CommonJS and as an ES module', async () => {
+test('the module loads as CommonJS, as an ES module, and through its exports map', async () => {
   const esm = await import(path.join(ROOT, 'anvers-identity.mjs'));
   assert.equal(esm.default.describe('anvers').d, A.describe('anvers').d);
   assert.equal(typeof esm.render, 'function');
-  assert.equal(require.resolve(path.join(ROOT, 'package.json')).length > 0, true);
+  // Resolution by the package's own name goes through "exports".
+  for (const [sub, file] of [['', 'anvers-identity.js'], ['/anvers-identity.js', 'anvers-identity.js'],
+                             ['/anvers-identity.mjs', 'anvers-identity.mjs'], ['/anvers-identity.css', 'anvers-identity.css'],
+                             ['/anvers-default.svg', 'anvers-default.svg'], ['/package.json', 'package.json']]) {
+    assert.equal(require.resolve(`anvers-identity${sub}`), path.join(ROOT, file), sub || '.');
+  }
+  const named = await import('anvers-identity');
+  assert.equal(named.default, esm.default);
 });
 
 test('the command line: seeds, options, the README example, errors', () => {
@@ -398,7 +437,12 @@ test('the command line: seeds, options, the README example, errors', () => {
   assert.ok(mode & 0o111, 'bin/anvers-mark.js is executable');
 });
 
-test('the source stays dependency-free and CSP-safe', () => {
+test('the source stays dependency-free, CSP-safe and ASCII', () => {
+  // ASCII only, so that the script means the same on a page in any encoding.
+  for (const file of ['anvers-identity.js', 'anvers-identity.mjs', 'anvers-identity.css', 'bin/anvers-mark.js',
+                      'test/unit.test.js', 'test/browser.test.mjs', 'demo/demo.js']) {
+    assert.doesNotMatch(fs.readFileSync(path.join(ROOT, file), 'latin1'), /[^\x00-\x7F]/, file);
+  }
   const src = fs.readFileSync(path.join(ROOT, 'anvers-identity.js'), 'utf8');
   assert.doesNotMatch(src, /\brequire\(|\bimport\s|\beval\(|new Function|innerHTML|outerHTML|insertAdjacentHTML|document\.write|setAttribute\('style'/);
   assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|localStorage|sessionStorage|indexedDB/);
