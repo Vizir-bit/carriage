@@ -16,6 +16,7 @@ The component is portable and has no dependency. One script draws the mark into 
 | `demo/` | A reference Home page around the mark (search field, links, the seed and a button to draw another). It is a preview harness: searches are shown, not sent. |
 | `previews/` | Screenshots at desktop and narrow widths in both colour schemes, and a grid of twenty-four seeds covering every shape and colour (`previews/grid.html` draws it live). |
 | `test/` | Unit tests (Node only), browser tests (Playwright), the golden marks and the script that rewrites them. |
+| `HANDOFF.md` | The handoff to Codex: the ownership split, what to integrate, how to verify on the Mac, what is established and what is not. |
 
 ## Integrating it
 
