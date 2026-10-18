@@ -1,0 +1,80 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f4ef;
+  --fg: #1b1b1a;
+  --muted: #5d5a54;
+  --line: #d6d0c4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151515;
+    --fg: #ece9e2;
+    --muted: #a6a29a;
+    --line: #34322e;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+main {
+  max-inline-size: 1180px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+p {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 16px;
+}
+
+.grid li {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.cell {
+  position: relative;
+  outline: 1px solid var(--line);
+}
+
+/* The safe area, 7 to 93 in the mark's 100-unit box. */
+.cell::after {
+  content: "";
+  position: absolute;
+  inset: 7%;
+  border: 1px dashed var(--line);
+  pointer-events: none;
+}
+
+.cell .anvers-identity {
+  --anvers-mark-size: 128px;
+  display: block;
+}
+
+.caption {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
