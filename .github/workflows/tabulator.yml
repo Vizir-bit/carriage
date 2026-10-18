@@ -1,0 +1,192 @@
+name: Tabulator — repackage a Carriage release as a separate app
+
+# Run by hand to publish a release. On a pull request that touches Tabulator,
+# the same job runs as a check: it repackages the default Carriage release,
+# tests it and keeps the new tab page screenshots as an artifact, without
+# publishing anything.
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: Carriage release to repackage
+        required: true
+        default: v0.19.2.1-carriage.2
+      tag:
+        description: Tabulator release tag
+        required: true
+        default: v0.19.2.1-tabulator.1
+      publish:
+        description: Publish a release (otherwise the screenshots go to the dev-dump release)
+        required: true
+        default: 'true'
+  pull_request:
+    paths:
+      - .github/workflows/tabulator.yml
+      - scripts/pak_patch.py
+      - scripts/tabulator/**
+      - scripts/tabulator_*.py
+      - resources/tabulator-icon/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tabulator-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  SOURCE_TAG: ${{ inputs.source_tag || 'v0.19.2.1-carriage.2' }}
+  TAG: ${{ inputs.tag }}
+  MODE: ${{ github.event_name != 'workflow_dispatch' && 'check' || (inputs.publish == 'true' && 'publish' || 'dev') }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Console tests
+        run: node scripts/tabulator/test_console.mjs
+      - name: Splice into a compiled Carriage new tab page
+        run: |
+          set -eux
+          python3 scripts/tabulator_ntp_patch.py --text dump/res_20462.txt patched.mjs 155.0.8059.39
+          node --check patched.mjs
+          if grep -q 'carriagePanelling' patched.mjs; then exit 1; fi
+
+  repackage:
+    needs: test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repackage, patch, sign, test
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          pip3 install --break-system-packages -q brotli || pip3 install -q brotli
+          gh release download "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.dmg' --dir dl
+          mnt=$(mktemp -d); hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dl/*.dmg
+          src=$(ls -d "$mnt"/*.app | head -1)
+          mkdir -p out; ditto "$src" out/Tabulator.app; hdiutil detach "$mnt"
+          app=out/Tabulator.app
+          plist=$app/Contents/Info.plist
+          fw=$(ls -d "$app"/Contents/Frameworks/*.framework | head -1)
+          chromium=$(readlink "$fw/Versions/Current")
+          res="$fw/Versions/Current/Resources"
+          version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$plist")
+          echo "--- source: $(basename "$src") $version, Chromium $chromium"
+
+          # Identity: own name, bundle ID and profile folder, as Orient-Express
+          echo "--- original keys"; /usr/libexec/PlistBuddy -c Print "$plist" | grep -E 'Bundle(Name|DisplayName|Identifier|Executable|Icon)|CrProductDirName|SU[A-Z]' || true
+          setkey() { /usr/libexec/PlistBuddy -c "Set :$1 $2" "$plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :$1 string $2" "$plist"; }
+          setkey CFBundleName Tabulator
+          setkey CFBundleDisplayName Tabulator
+          setkey CFBundleIdentifier app.tabulator.browser
+          setkey CrProductDirName app.tabulator.browser
+          # A repackaged app must never update itself into Carriage.
+          /usr/libexec/PlistBuddy -c "Delete :SUFeedURL" "$plist" 2>/dev/null && echo "SUFeedURL removed" || true
+          find "$app/Contents/Resources" -maxdepth 2 -name InfoPlist.strings -print0 | while IFS= read -r -d '' f; do
+            plutil -convert xml1 "$f"
+            sed -i '' 's/Carriage/Tabulator/g' "$f"
+          done
+          # Menus, dialogs and settings: "Quit Tabulator"
+          python3 scripts/tabulator_rename.py "$res" \
+            || echo "::warning::Localised strings not renamed; menus still say Carriage"
+
+          # New tab page: the operator's console
+          python3 scripts/tabulator_ntp_patch.py "$res/resources.pak" "$chromium"
+
+          # Toolbar: the default theme colour, mahogany to slate
+          if python3 scripts/tabulator_theme_patch.py "$fw/Versions/Current/$(basename "$fw" .framework)"; then
+            echo "THEME=slate" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Default theme colour left as built (mahogany)"
+            echo "THEME=mahogany" >> "$GITHUB_ENV"
+          fi
+
+          # App icon: app.icns from the legacy renders; Assets.car from the
+          # Icon Composer source, compiled as icons.yml compiles Carriage's
+          work=$(mktemp -d); mkdir -p "$work/AppIcon.iconset" "$work/Assets.xcassets/AppIcon.appiconset" icon
+          for s in 16 32 128 256 512; do
+            in=resources/tabulator-icon/legacy.png; [ $s -le 32 ] && in=resources/tabulator-icon/legacy_crop.png
+            sips -z $s $s "$in" --out "$work/AppIcon.iconset/icon_${s}x${s}.png"
+            sips -z $((2 * s)) $((2 * s)) "$in" --out "$work/AppIcon.iconset/icon_${s}x${s}@2x.png"
+          done
+          iconutil -c icns "$work/AppIcon.iconset" -o "$app/Contents/Resources/app.icns"
+          cp -R resources/tabulator-icon/AppIcon.icon "$work/AppIcon.icon"
+          cp resources/assets/Assets.xcassets/Contents.json "$work/Assets.xcassets/"
+          cp resources/assets/Assets.xcassets/AppIcon.appiconset/Contents.json "$work/Assets.xcassets/AppIcon.appiconset/"
+          for s in 16 32 64 128 256 512; do
+            in=resources/tabulator-icon/legacy.png; [ $s -le 32 ] && in=resources/tabulator-icon/legacy_crop.png
+            sips -z $s $s "$in" --out "$work/Assets.xcassets/AppIcon.appiconset/appicon_${s}.png"
+          done
+          if xcrun actool "$work/AppIcon.icon" "$work/Assets.xcassets" --compile icon \
+               --platform macosx --minimum-deployment-target 12.0 \
+               --app-icon AppIcon --include-all-app-icons \
+               --output-partial-info-plist icon/partial.plist --errors --warnings --notices \
+             && [ -f icon/Assets.car ]; then
+            cp icon/Assets.car "$app/Contents/Resources/Assets.car"
+          else
+            # No compiled catalogue: macOS then takes the icon from app.icns.
+            echo "::warning::Assets.car not compiled; the icon comes from app.icns"
+            /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$plist" 2>/dev/null || true
+          fi
+          echo "--- new keys"; /usr/libexec/PlistBuddy -c Print "$plist" | grep -E 'Bundle(Name|DisplayName|Identifier|Executable|Icon)|CrProductDirName|SU[A-Z]' || true
+
+          xattr -cr "$app"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+
+          # Render the new tab page and screenshot it; a script error there fails the job
+          exe="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$plist")"
+          "$exe" --headless=new --no-first-run --user-data-dir="$RUNNER_TEMP/p" \
+             --enable-logging=stderr --v=0 --virtual-time-budget=15000 --window-size=1440,900 \
+             --screenshot="$PWD/ntp-1440.png" chrome://new-tab-page/ 2> ntp.log || true
+          "$exe" --headless=new --no-first-run --user-data-dir="$RUNNER_TEMP/p" \
+             --virtual-time-budget=15000 --window-size=1024,768 --screenshot="$PWD/ntp-1024.png" chrome://new-tab-page/ || true
+          grep -i -E 'console|uncaught|tabulator|refused|ERR_' ntp.log | head -40 || true
+          if grep -E 'Uncaught' ntp.log | grep -i -E 'new.tab.page|tabulator'; then
+            echo "::error::Script error on the new tab page"; exit 1
+          fi
+          ls -la ntp-1440.png ntp-1024.png
+
+          # Smoke test: the app creates its own profile folder
+          ("$exe" --no-first-run --headless=new about:blank & echo $! > pid); sleep 25
+          find "$HOME/Library/Application Support" -maxdepth 1 \( -iname '*tabulator*' -o -iname '*carriage*' \) || true
+          test -d "$HOME/Library/Application Support/app.tabulator.browser"
+          kill "$(cat pid)" || true
+
+          ln -s /Applications out/Applications
+          dmg=tabulator_${version}_arm64-macos.dmg
+          hdiutil create -volname Tabulator -srcfolder out -ov -format UDZO "$dmg"
+          sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1); echo "$sha  $dmg" > "$dmg.sha256"
+          echo "DMG=$dmg" >> "$GITHUB_ENV"; echo "SHA=$sha" >> "$GITHUB_ENV"
+          echo "VERSION=$version" >> "$GITHUB_ENV"; echo "CHROMIUM=$chromium" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with: {name: tabulator-screenshots, path: '*.png', if-no-files-found: warn}
+      - name: Share screenshots (dev)
+        if: env.MODE == 'dev'
+        env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+        run: |
+          gh release delete dev-dump --repo "$GITHUB_REPOSITORY" -y --cleanup-tag || true
+          gh release create dev-dump ./*.png --repo "$GITHUB_REPOSITORY" --prerelease --title "dev dump (temporary)" --notes temporary
+      - name: Publish
+        if: env.MODE == 'publish'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$THEME" = slate ]; then
+            toolbar="A slate toolbar for new profiles, to match the console."
+          else
+            toolbar="The toolbar keeps Carriage's mahogany for now; choose another colour under Customise on the new tab page."
+          fi
+          printf '%s\n' \
+            "Tabulator — a browser styled after the first IBM machines, as a separate app next to Carriage. Same browser as $SOURCE_TAG: Helium $VERSION / Chromium $CHROMIUM (ungoogled-chromium), uBlock Origin included." "" \
+            "- New tab page: an operator's console after the IBM 650 (1954). Neon lamps in bi-quinary code show the date and time and the clocks of London, Paris, Roma and Moscow; Power and Network lamps; an 80-column punched card carries the engine version and today's date in Hollerith code. Nothing on the page goes to the network." \
+            "- Its own name, icon, menus (Quit Tabulator) and profile folder (~/Library/Application Support/app.tabulator.browser): bookmarks, history and extensions are kept apart from Carriage." \
+            "- $toolbar" \
+            "- Not signed by Apple: the first time, right-click Tabulator in Applications and choose Open." "" \
+            "sha256: $SHA" > notes.md
+          gh release create "$TAG" "$DMG" "$DMG.sha256" --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "Tabulator — first IBM machines, on Chromium (Apple Silicon)" --notes-file notes.md
+          gh release upload "$TAG" ./*.png --repo "$GITHUB_REPOSITORY" || true

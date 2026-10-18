@@ -1,0 +1,35 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "srgb:0.36863,0.41961,0.46667,1.00000",
+      "srgb:0.18039,0.21176,0.24314,1.00000"
+    ]
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": false,
+          "hidden": false,
+          "image-name": "logo.png",
+          "name": "console",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.35
+      },
+      "specular": true
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

@@ -1,0 +1,321 @@
+/* Tabulator: a steel console cabinet with chrome trim and ventilation
+   louvres, a black enamel nameplate, a panel of neon lamps and a punched
+   card. Replaces the Carriage panelling in the new tab page's styles; no
+   backquotes, no dollar-brace (it sits inside a template literal). */
+#tabulatorCabinet {
+  background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px,
+                                transparent 1px 3px),
+      linear-gradient(180deg, #57636E, #47525C 55%, #3B444D);
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
+}
+
+.tabulator-trim {
+  background: linear-gradient(180deg, #F2F5F7, #8C98A2 50%, #D6DDE2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  height: 4px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.tabulator-trim.top {
+  top: 8%;
+}
+
+/* The bottom trim tops a darker plinth, below the shortcuts. */
+.tabulator-trim.bottom {
+  bottom: 18px;
+}
+
+.tabulator-plinth {
+  background: linear-gradient(180deg, #2E363E, #262C32);
+  bottom: 0;
+  height: 18px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+/* Ventilation grilles on either side, clear of the console. */
+.tabulator-louvres {
+  background: repeating-linear-gradient(180deg, rgba(8, 11, 14, 0.5) 0 4px,
+                                        rgba(255, 255, 255, 0.07) 4px 5px,
+                                        transparent 5px 13px);
+  border-radius: 3px;
+  height: 38%;
+  position: absolute;
+  top: 31%;
+  width: clamp(40px, 5vw, 96px);
+}
+
+.tabulator-louvres.left {
+  left: 3vw;
+}
+
+.tabulator-louvres.right {
+  right: 3vw;
+}
+
+#tabulatorPlate {
+  background: linear-gradient(180deg, #1C2125, #0D1013);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px #59656F, 0 0 0 4px #C8D1D8, 0 0 0 5px #6A757F,
+      0 6px 14px rgba(0, 0, 0, 0.5);
+  color: #EEF2F4;
+  font-family: Rockwell, 'Roboto Slab', 'Courier New', serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  margin-bottom: 34px;
+  padding: 7px 18px 6px 25px;
+}
+
+#tabulatorConsole {
+  --tabulator-lamp: 12px;
+  --tabulator-pitch: 18px;
+  background: linear-gradient(180deg, #E0E5E9, #8E99A3 48%, #C6CED5);
+  border-radius: 12px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 #FFFFFF;
+  box-sizing: border-box;
+  margin-bottom: 30px;
+  max-width: 96vw;
+  padding: 5px;
+}
+
+.tabulator-face {
+  background: linear-gradient(180deg, #262D33, #1D2328);
+  border-radius: 8px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7);
+  color: #C3CCD4;
+  font-family: 'DIN Condensed', 'DIN Alternate', 'Avenir Next Condensed',
+      'Arial Narrow', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  padding: 12px 26px 14px 18px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  text-transform: uppercase;
+}
+
+.tabulator-head {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 0 8px 2px;
+}
+
+.tabulator-status {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.tabulator-status .tabulator-lamp ~ .tabulator-lamp {
+  margin-left: 12px;
+}
+
+.tabulator-registers {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+}
+
+.tabulator-caption {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  height: 16px;
+  justify-content: center;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.tabulator-rows,
+.tabulator-sign {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--tabulator-pitch) - var(--tabulator-lamp));
+  padding-top: 20px;
+}
+
+.tabulator-rows span,
+.tabulator-sign span {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  height: var(--tabulator-lamp);
+  justify-content: flex-end;
+  line-height: var(--tabulator-lamp);
+}
+
+.tabulator-sign span {
+  justify-content: flex-start;
+}
+
+.tabulator-pairs {
+  display: flex;
+  gap: 10px;
+}
+
+.tabulator-pair {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabulator-digits {
+  display: flex;
+}
+
+.tabulator-digit {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--tabulator-pitch) - var(--tabulator-lamp));
+  width: var(--tabulator-pitch);
+}
+
+.tabulator-pos {
+  color: #87939E;
+  font-size: 8px;
+  font-weight: 600;
+  height: var(--tabulator-lamp);
+  line-height: var(--tabulator-lamp);
+}
+
+.tabulator-rows .quinary,
+.tabulator-digit .quinary {
+  margin-top: 7px;
+}
+
+.tabulator-lamp {
+  background: radial-gradient(circle at 38% 32%, #5E4535, #2B1E16 62%,
+                              #170F0B);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+      0 1px 0 rgba(255, 255, 255, 0.07);
+  display: block;
+  flex: none;
+  height: var(--tabulator-lamp);
+  transition: background 120ms, box-shadow 120ms;
+  width: var(--tabulator-lamp);
+}
+
+.tabulator-lamp.on {
+  background: radial-gradient(circle at 40% 36%, #FFF4DA, #FFB45E 28%,
+                              #FF6B1F 62%, #B9400C);
+  box-shadow: 0 0 5px 1px rgba(255, 118, 36, 0.75),
+      0 0 14px 3px rgba(255, 96, 24, 0.3);
+}
+
+.tabulator-lamp.small {
+  --tabulator-lamp: 8px;
+}
+
+.tabulator-label {
+  color: #87939E;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  margin-top: 9px;
+}
+
+.tabulator-value {
+  color: #F3E5CA;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  margin-top: 1px;
+}
+
+.tabulator-divider {
+  align-self: stretch;
+  background: linear-gradient(180deg, transparent,
+                              rgba(255, 255, 255, 0.16), transparent);
+  margin: 0 4px;
+  width: 1px;
+}
+
+#tabulatorCard {
+  aspect-ratio: 737.5 / 325;
+  display: block;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45));
+  flex: none;
+  height: auto;
+  margin-bottom: 30px;
+  position: relative;
+  transform: rotate(-1deg);
+  width: min(460px, 86vw);
+}
+
+#tabulatorCard .stock {
+  stroke: rgba(120, 96, 50, 0.35);
+  stroke-width: 0.8;
+}
+
+#tabulatorCard text {
+  font-family: 'Andale Mono', Menlo, 'DejaVu Sans Mono', monospace;
+  text-anchor: middle;
+}
+
+#tabulatorCard .printed text {
+  fill: #8A7A58;
+  font-size: 9px;
+  opacity: 0.85;
+}
+
+#tabulatorCard .numbers {
+  fill: #8A7A58;
+  font-size: 4.6px;
+  opacity: 0.75;
+}
+
+#tabulatorCard .interpret {
+  fill: #2B2620;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+#tabulatorCard .holes {
+  fill: #252C32;
+}
+
+@media (max-height: 820px) {
+  #tabulatorPlate {
+    margin-bottom: 22px;
+  }
+
+  #tabulatorConsole {
+    margin-bottom: 20px;
+  }
+
+  #tabulatorCard {
+    margin-bottom: 20px;
+    width: min(360px, 86vw);
+  }
+}
+
+@media (max-width: 1000px) {
+  .tabulator-louvres {
+    display: none;
+  }
+}
+
+@media (max-height: 700px) {
+  #tabulatorCard {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabulator-lamp {
+    transition: none;
+  }
+}
