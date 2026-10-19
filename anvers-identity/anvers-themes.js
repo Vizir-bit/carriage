@@ -2,72 +2,91 @@
  * Anvers browser themes: colour-only Chromium themes for the frame, tabs,
  * toolbar, address bar and bookmark text, built from the identity's own
  * palette (red, yellow, blue, paper, ink), plus white for the address field
- * and a dark red for the toolbar icons.
+ * and the text on the frame, and a dark red for the default's toolbar icons.
  *
  * Each theme is a standalone folder holding one manifest.json and nothing
- * else: no code, no images, and no ntp_* key, so no page content changes,
- * the New Tab page included. bin/anvers-themes.js writes the folders from
- * this table; the tests check that the committed folders match it, that every
- * key is one Chromium reads, and that every text and icon keeps its contrast.
+ * else: no code, no images and no ntp_* key. Chromium still paints its own
+ * New Tab page in the toolbar colour whenever any theme is installed, and it
+ * shows private windows in its own dark colours whatever the theme says; see
+ * the README. bin/anvers-themes.js writes the folders from this table; the
+ * tests check that the committed folders match it, that every key is one
+ * Chromium reads, and that every text and icon keeps its contrast in each
+ * state Chromium draws.
  *
  * Node only (CommonJS), no dependency.
  */
 'use strict';
 
-const {palette} = require('./anvers-identity.js');
+const {palette, grounds} = require('./anvers-identity.js');
 
 const LIGHT = palette.light;
-const PAPER = '#f3efe6';
-const INK = '#161616';
+const PAPER = grounds.paper;
+const INK = grounds.ink;
 const WHITE = '#ffffff';
 const DARK_RED = '#7a2318';
 
-// The colour keys Chromium's theme pack reads (chrome/browser/themes/
-// browser_theme_pack.cc). ntp_* keys exist too and are deliberately left out.
+// The colour keys these themes write, a subset of those Chromium's theme pack
+// reads (chrome/browser/themes/browser_theme_pack.cc). Left out on purpose:
+// ntp_* (the New Tab page), background_tab* (a tab fill apart from the frame)
+// and the incognito keys, which Chromium ignores because it does not theme
+// private windows.
 const KEYS = Object.freeze([
-  'frame', 'frame_inactive', 'frame_incognito', 'frame_incognito_inactive',
+  'frame', 'frame_inactive',
   'toolbar', 'toolbar_text', 'toolbar_button_icon',
   'tab_text', 'tab_background_text', 'tab_background_text_inactive',
-  'tab_background_text_incognito', 'tab_background_text_incognito_inactive',
-  'bookmark_text', 'button_background', 'omnibox_background', 'omnibox_text',
+  'bookmark_text', 'omnibox_background', 'omnibox_text',
 ]);
 
-// Which text or icon sits on which background, and the contrast it needs:
-// 4.5:1 for text, 3:1 for icons. The active tab takes the toolbar's colour.
-const PAIRS = Object.freeze([
-  ['tab_text', 'toolbar', 4.5],
-  ['toolbar_text', 'toolbar', 4.5],
-  ['bookmark_text', 'toolbar', 4.5],
-  ['toolbar_button_icon', 'toolbar', 3],
-  ['omnibox_text', 'omnibox_background', 4.5],
-  ['tab_background_text', 'frame', 4.5],
-  ['tab_background_text_inactive', 'frame_inactive', 4.5],
-  ['tab_background_text_incognito', 'frame_incognito', 4.5],
-  ['tab_background_text_incognito_inactive', 'frame_incognito_inactive', 4.5],
+// Each state Chromium 141 draws a text or an icon in, what it sits on, and the
+// contrast it needs: 4.5:1 for text, 3:1 for icons. A background is a key or
+// a mix [over, under, share of over]: Chromium fills a hovered background tab
+// with 40% of the toolbar colour over the frame, a selected tab with 75%, and
+// a hovered selected tab with 85%, and it keeps the background-tab text on a
+// hovered tab, selected or not (tab_strip_color_mixer.cc, tab_style_views.cc).
+// In an unfocused window it draws the new-tab button with the toolbar icon
+// colour at 0x6E/255 opacity (chrome_color_mixer.cc), so that foreground is
+// itself a mix. The active tab takes the toolbar colour.
+const HOVER = 0.4, SELECTED = 0.75, SELECTED_HOVER = 0.85, DIMMED = 0x6E / 255;
+const STATES = Object.freeze([
+  ['toolbar text', 'toolbar_text', 'toolbar', 4.5],
+  ['active tab text', 'tab_text', 'toolbar', 4.5],
+  ['bookmark text', 'bookmark_text', 'toolbar', 4.5],
+  ['toolbar icons', 'toolbar_button_icon', 'toolbar', 3],
+  ['address text', 'omnibox_text', 'omnibox_background', 4.5],
+  ['background tab text', 'tab_background_text', 'frame', 4.5],
+  ['hovered background tab text', 'tab_background_text', ['toolbar', 'frame', HOVER], 4.5],
+  ['selected tab text', 'tab_text', ['toolbar', 'frame', SELECTED], 4.5],
+  ['hovered selected tab text', 'tab_background_text', ['toolbar', 'frame', SELECTED_HOVER], 4.5],
+  ['background tab text, unfocused window', 'tab_background_text_inactive', 'frame_inactive', 4.5],
+  ['hovered background tab text, unfocused window', 'tab_background_text_inactive', ['toolbar', 'frame_inactive', HOVER], 4.5],
+  ['selected tab text, unfocused window', 'tab_text', ['toolbar', 'frame_inactive', SELECTED], 4.5],
+  ['hovered selected tab text, unfocused window', 'tab_background_text_inactive', ['toolbar', 'frame_inactive', SELECTED_HOVER], 4.5],
+  ['new-tab button, unfocused window', ['toolbar_button_icon', 'frame_inactive', DIMMED], 'frame_inactive', 3],
 ]);
 
-// A full theme from three choices: the frame, the toolbar and the icons. The
-// text is ink on light grounds and paper on the frame; unfocused and private
-// windows take the given inactive frame.
-function bauhaus({frame, inactive, toolbar, icons}) {
+// A full theme from five choices: the frame, the unfocused window's frame, the
+// toolbar (which the active tab shares), the text on the toolbar and the
+// icons. The text on the frame is white; the address field is white with ink.
+function bauhaus({frame, inactive, toolbar, text, icons}) {
   return {
     frame,
     frame_inactive: inactive,
-    frame_incognito: INK,
-    frame_incognito_inactive: INK,
     toolbar,
-    toolbar_text: INK,
+    toolbar_text: text,
     toolbar_button_icon: icons,
-    tab_text: INK,
-    tab_background_text: PAPER,
-    tab_background_text_inactive: PAPER,
-    tab_background_text_incognito: PAPER,
-    tab_background_text_incognito_inactive: PAPER,
-    bookmark_text: INK,
+    tab_text: text,
+    tab_background_text: WHITE,
+    tab_background_text_inactive: WHITE,
+    bookmark_text: text,
     omnibox_background: WHITE,
     omnibox_text: INK,
   };
 }
+
+// The states the 0.5.2 composition cannot pass, whatever its exact values:
+// a dark frame under a light toolbar, with dark icons.
+const LIGHT_ON_LIGHT = 'Chromium keeps the light text of background tabs on a fill that is 85% the light toolbar colour';
+const DIMMED_ICON = 'Chromium draws the button in the dark icon colour at 43% opacity over the dark unfocused frame';
 
 const THEMES = Object.freeze([
   {
@@ -75,26 +94,33 @@ const THEMES = Object.freeze([
     name: 'Anvers Bauhaus',
     role: 'default',
     description: 'Blue frame, yellow toolbar and active tab, dark-red icons, white address field, ink text.',
-    colors: bauhaus({frame: LIGHT.blue, inactive: INK, toolbar: LIGHT.yellow, icons: DARK_RED}),
+    colors: bauhaus({frame: LIGHT.blue, inactive: INK, toolbar: LIGHT.yellow, text: INK, icons: DARK_RED}),
+    exceptions: {
+      'hovered selected tab text': LIGHT_ON_LIGHT,
+      'hovered selected tab text, unfocused window': LIGHT_ON_LIGHT,
+      'new-tab button, unfocused window': DIMMED_ICON,
+    },
   },
   {
     folder: 'anvers-bauhaus-red',
     name: 'Anvers Bauhaus Red',
     role: 'alternative',
-    description: 'Red frame, paper toolbar and active tab, blue icons, white address field, ink text.',
-    colors: bauhaus({frame: LIGHT.red, inactive: INK, toolbar: PAPER, icons: LIGHT.blue}),
+    description: 'Red frame, blue toolbar and active tab, paper icons, white address field, white text.',
+    colors: bauhaus({frame: LIGHT.red, inactive: INK, toolbar: LIGHT.blue, text: WHITE, icons: PAPER}),
+    exceptions: {},
   },
   {
     folder: 'anvers-bauhaus-ink',
     name: 'Anvers Bauhaus Ink',
     role: 'alternative',
-    description: 'Ink frame, paper toolbar and active tab, red icons, white address field, ink text.',
-    colors: bauhaus({frame: INK, inactive: LIGHT.blue, toolbar: PAPER, icons: LIGHT.red}),
+    description: 'Ink frame, red toolbar and active tab, paper icons, white address field, white text.',
+    colors: bauhaus({frame: INK, inactive: INK, toolbar: LIGHT.red, text: WHITE, icons: PAPER}),
+    exceptions: {},
   },
   {
     // Codex's bundled theme of Anvers 0.5.0, as reported on the pull request,
     // without its ntp_* keys. Only the reported keys are set; Chromium derives
-    // the rest (tab text on the frame among them).
+    // the rest, so only the states built from reported keys are computed.
     folder: 'anvers-reference-0.5.0',
     name: 'Anvers Reference 0.5.0',
     role: 'reference',
@@ -109,10 +135,18 @@ const THEMES = Object.freeze([
       omnibox_background: '#ffffff',
       omnibox_text: '#111111',
     },
+    exceptions: {},
   },
 ]);
 
 const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+// `share` of `over` laid on `under`, as Chromium's AlphaBlend does in sRGB.
+function mix(over, under, share) {
+  const a = rgb(over), b = rgb(under);
+  return hex(a.map((v, i) => share * v + (1 - share) * b[i]));
+}
 
 function luminance(hex) {
   const c = rgb(hex).map(v => v / 255)
@@ -125,12 +159,27 @@ function contrast(a, b) {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
 
-// Every pair a theme sets, with its contrast and whether it passes.
+// A key, or a mix of keys, as a colour; null if the theme leaves a key unset.
+function resolve(colors, spec) {
+  if (typeof spec === 'string') return colors[spec] || null;
+  const [over, under, share] = spec;
+  return colors[over] && colors[under] ? mix(colors[over], colors[under], share) : null;
+}
+
+// Every state a theme's keys determine, with its contrast and its status:
+// 'ok', 'exception' (a known state the composition cannot pass, named in the
+// theme with its reason) or 'FAIL'.
 function check(theme) {
-  return PAIRS.filter(([fg, bg]) => theme.colors[fg] && theme.colors[bg]).map(([fg, bg, min]) => {
-    const ratio = contrast(theme.colors[fg], theme.colors[bg]);
-    return {fg, bg, min, ratio: Math.round(ratio * 100) / 100, pass: ratio >= min};
-  });
+  const rows = [];
+  for (const [state, fgSpec, bgSpec, min] of STATES) {
+    const fg = resolve(theme.colors, fgSpec), bg = resolve(theme.colors, bgSpec);
+    if (!fg || !bg) continue;
+    const ratio = contrast(fg, bg);
+    const reason = theme.exceptions[state];
+    const status = ratio >= min ? 'ok' : reason ? 'exception' : 'FAIL';
+    rows.push({state, fg, bg, min, ratio: Math.round(ratio * 100) / 100, status, reason: status === 'exception' ? reason : undefined});
+  }
+  return rows;
 }
 
 // The manifest.json a theme folder holds.
@@ -153,4 +202,4 @@ function serialize(theme) {
     .replace(/\[\s+(\d+),\s+(\d+),\s+(\d+)\s+\]/g, '[$1, $2, $3]') + '\n';
 }
 
-module.exports = Object.freeze({KEYS, PAIRS, THEMES, rgb, contrast, check, manifest, serialize});
+module.exports = Object.freeze({KEYS, STATES, THEMES, rgb, mix, contrast, check, manifest, serialize});

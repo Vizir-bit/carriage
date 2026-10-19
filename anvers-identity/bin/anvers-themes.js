@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Writes every Anvers browser theme as a standalone folder holding one
 // manifest.json, under themes/ (or the directory given), and prints each
-// theme's contrast table. Stops without writing if any text or icon falls
-// below its contrast.
+// theme's contrast in every state Chromium draws. Stops without writing if
+// any text or icon falls below its contrast outside the exceptions a theme
+// names.
 //
 //   node bin/anvers-themes.js [directory]
 'use strict';
@@ -15,11 +16,12 @@ const out = path.resolve(process.argv[2] || path.join(__dirname, '..', 'themes')
 
 let failed = false;
 for (const theme of THEMES) {
-  const rows = check(theme);
   process.stdout.write(`${theme.folder} (${theme.role})\n`);
-  for (const r of rows) {
-    process.stdout.write(`  ${r.pass ? 'ok  ' : 'FAIL'} ${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)}:1 (needs ${r.min}:1)\n`);
-    if (!r.pass) failed = true;
+  for (const r of check(theme)) {
+    const mark = {ok: 'ok  ', exception: 'KNOWN', FAIL: 'FAIL'}[r.status];
+    process.stdout.write(`  ${mark} ${r.state}: ${r.fg} on ${r.bg}, ${r.ratio.toFixed(2)}:1 (needs ${r.min}:1)\n`);
+    if (r.reason) process.stdout.write(`        ${r.reason}\n`);
+    if (r.status === 'FAIL') failed = true;
   }
 }
 if (failed) {

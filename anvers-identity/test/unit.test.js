@@ -403,7 +403,8 @@ test('the module loads as CommonJS, as an ES module, and through its exports map
   // Resolution by the package's own name goes through "exports".
   for (const [sub, file] of [['', 'anvers-identity.js'], ['/anvers-identity.js', 'anvers-identity.js'],
                              ['/anvers-identity.mjs', 'anvers-identity.mjs'], ['/anvers-identity.css', 'anvers-identity.css'],
-                             ['/anvers-default.svg', 'anvers-default.svg'], ['/package.json', 'package.json']]) {
+                             ['/anvers-default.svg', 'anvers-default.svg'], ['/package.json', 'package.json'],
+                             ['/anvers-themes.js', 'anvers-themes.js']]) {
     assert.equal(require.resolve(`anvers-identity${sub}`), path.join(ROOT, file), sub || '.');
   }
   const named = await import('anvers-identity');
@@ -451,82 +452,191 @@ test('the source stays dependency-free, CSP-safe and ASCII', () => {
 
 // ---- Browser themes ------------------------------------------------------
 
+const os = require('node:os');
 const T = require('../anvers-themes.js');
 const THEMES_DIR = path.join(ROOT, 'themes');
 
-// Colour keys Chromium's theme pack reads, written out from
-// chrome/browser/themes/browser_theme_pack.cc rather than taken from the
-// module, so that a typo in the module cannot pass.
+// Everything below reads the committed manifests, the files Chromium loads,
+// and checks them with this file's own lists and arithmetic rather than the
+// module's, so that a fault in the module or the generator cannot pass.
+
+// Chromium's theme colour keys: kOverwritableColorTable in
+// chrome/browser/themes/browser_theme_pack.cc (141.0.7390.37).
 const CHROMIUM_COLOR_KEYS = new Set([
-  'bookmark_text', 'button_background', 'frame', 'frame_inactive', 'frame_incognito',
-  'frame_incognito_inactive', 'ntp_background', 'ntp_header', 'ntp_link', 'ntp_text',
-  'omnibox_background', 'omnibox_text', 'tab_background_text', 'tab_background_text_inactive',
-  'tab_background_text_incognito', 'tab_background_text_incognito_inactive', 'tab_text',
-  'toolbar', 'toolbar_button_icon', 'toolbar_text',
+  'background_tab', 'background_tab_inactive', 'background_tab_incognito',
+  'background_tab_incognito_inactive', 'bookmark_text', 'button_background', 'frame',
+  'frame_inactive', 'frame_incognito', 'frame_incognito_inactive', 'ntp_background', 'ntp_header',
+  'ntp_link', 'ntp_text', 'omnibox_background', 'omnibox_text', 'tab_background_text',
+  'tab_background_text_inactive', 'tab_background_text_incognito',
+  'tab_background_text_incognito_inactive', 'tab_text', 'toolbar', 'toolbar_button_icon', 'toolbar_text',
 ]);
+
+// What each text and icon sits on in Chromium 141: a key, or [over, under,
+// share] for the fills Chromium mixes (a hovered background tab 40% toolbar
+// over the frame, a selected tab 75%, a hovered selected tab 85%); the
+// new-tab button of an unfocused window is the icon colour at 0x6E/255.
+const THEME_STATES = [
+  ['toolbar text', 'toolbar_text', 'toolbar', 4.5],
+  ['active tab text', 'tab_text', 'toolbar', 4.5],
+  ['bookmark text', 'bookmark_text', 'toolbar', 4.5],
+  ['toolbar icons', 'toolbar_button_icon', 'toolbar', 3],
+  ['address text', 'omnibox_text', 'omnibox_background', 4.5],
+  ['background tab text', 'tab_background_text', 'frame', 4.5],
+  ['hovered background tab text', 'tab_background_text', ['toolbar', 'frame', 0.4], 4.5],
+  ['selected tab text', 'tab_text', ['toolbar', 'frame', 0.75], 4.5],
+  ['hovered selected tab text', 'tab_background_text', ['toolbar', 'frame', 0.85], 4.5],
+  ['background tab text, unfocused window', 'tab_background_text_inactive', 'frame_inactive', 4.5],
+  ['hovered background tab text, unfocused window', 'tab_background_text_inactive', ['toolbar', 'frame_inactive', 0.4], 4.5],
+  ['selected tab text, unfocused window', 'tab_text', ['toolbar', 'frame_inactive', 0.75], 4.5],
+  ['hovered selected tab text, unfocused window', 'tab_background_text_inactive', ['toolbar', 'frame_inactive', 0.85], 4.5],
+  ['new-tab button, unfocused window', ['toolbar_button_icon', 'frame_inactive', 0x6E / 255], 'frame_inactive', 3],
+];
+// The only states a theme may name as exceptions: those where Chromium's own
+// drawing, not the theme, decides the contrast for a whole kind of composition.
+const ALLOWED_EXCEPTIONS = new Set([
+  'hovered selected tab text', 'hovered selected tab text, unfocused window', 'new-tab button, unfocused window',
+]);
+
+function readManifest(folder) {
+  return JSON.parse(fs.readFileSync(path.join(THEMES_DIR, folder, 'manifest.json'), 'utf8'));
+}
+// The colours a committed manifest gives Chromium, as lower-case hex.
+function shipped(folder) {
+  const colors = {};
+  for (const [key, value] of Object.entries(readManifest(folder).theme.colors)) {
+    colors[key] = '#' + value.map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  return colors;
+}
+function colourOf(colors, spec) {
+  if (typeof spec === 'string') return colors[spec];
+  const [over, under, share] = spec;
+  if (!colors[over] || !colors[under]) return undefined;
+  const a = [1, 3, 5].map(i => parseInt(colors[over].slice(i, i + 2), 16));
+  const b = [1, 3, 5].map(i => parseInt(colors[under].slice(i, i + 2), 16));
+  return '#' + a.map((v, i) => Math.round(share * v + (1 - share) * b[i]).toString(16).padStart(2, '0')).join('');
+}
+// [state, ratio, min] for every state the shipped colours determine.
+function shippedStates(folder) {
+  const colors = shipped(folder);
+  return THEME_STATES.map(([state, fg, bg, min]) => [state, colourOf(colors, fg), colourOf(colors, bg), min])
+    .filter(([, fg, bg]) => fg && bg).map(([state, fg, bg, min]) => [state, contrast(fg, bg), min]);
+}
+function withTempDir(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anvers-themes-'));
+  try { return fn(dir); } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+}
 
 test('themes: the committed folders are exactly what the generator writes', () => {
   const folders = fs.readdirSync(THEMES_DIR, {withFileTypes: true}).filter(d => d.isDirectory()).map(d => d.name).sort();
   assert.deepEqual(folders, T.THEMES.map(t => t.folder).sort());
-  for (const theme of T.THEMES) {
-    const dir = path.join(THEMES_DIR, theme.folder);
-    assert.deepEqual(fs.readdirSync(dir), ['manifest.json'], `${theme.folder} holds only its manifest`);
-    assert.equal(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), T.serialize(theme),
-                 `${theme.folder}: regenerate with node bin/anvers-themes.js`);
-  }
-  const out = execFileSync(process.execPath, [path.join(ROOT, 'bin', 'anvers-themes.js'),
-    fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'anvers-themes-'))], {encoding: 'utf8'});
-  assert.match(out, /4 themes written/);
-  assert.doesNotMatch(out, /FAIL/);
+  for (const folder of folders) assert.deepEqual(fs.readdirSync(path.join(THEMES_DIR, folder)), ['manifest.json'], folder);
+  withTempDir(dir => {
+    const out = execFileSync(process.execPath, [path.join(ROOT, 'bin', 'anvers-themes.js'), dir], {encoding: 'utf8'});
+    assert.match(out, /4 themes written/);
+    assert.doesNotMatch(out, /FAIL/);
+    assert.deepEqual(fs.readdirSync(dir).sort(), folders);
+    for (const folder of folders) {
+      assert.deepEqual(fs.readdirSync(path.join(dir, folder)), ['manifest.json'], folder);
+      assert.equal(fs.readFileSync(path.join(dir, folder, 'manifest.json'), 'utf8'),
+                   fs.readFileSync(path.join(THEMES_DIR, folder, 'manifest.json'), 'utf8'),
+                   `${folder}: regenerate with node bin/anvers-themes.js`);
+    }
+  });
 });
 
-test('themes: colour-only manifests, Chromium keys only, no New Tab page keys', () => {
+test('themes: the generator refuses a failing theme and writes nothing', () => {
+  withTempDir(dir => {
+    // A copy of the module whose default icons fall to 2.70:1 on yellow.
+    fs.mkdirSync(path.join(dir, 'bin'));
+    fs.copyFileSync(path.join(ROOT, 'anvers-identity.js'), path.join(dir, 'anvers-identity.js'));
+    fs.copyFileSync(path.join(ROOT, 'bin', 'anvers-themes.js'), path.join(dir, 'bin', 'anvers-themes.js'));
+    const src = fs.readFileSync(path.join(ROOT, 'anvers-themes.js'), 'utf8');
+    const broken = src.replace("const DARK_RED = '#7a2318';", "const DARK_RED = '#9f4f28';");
+    assert.notEqual(broken, src);
+    fs.writeFileSync(path.join(dir, 'anvers-themes.js'), broken);
+    const target = path.join(dir, 'out');
+    const run = spawnSync(process.execPath, [path.join(dir, 'bin', 'anvers-themes.js'), target], {encoding: 'utf8'});
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /FAIL toolbar icons: #9f4f28 on #e0a817, 2\.70:1/);
+    assert.match(run.stderr, /nothing written/);
+    assert.equal(fs.existsSync(target), false);
+  });
+});
+
+test('themes: colour-only manifests, Chromium keys only, nothing Chromium ignores', () => {
   for (const theme of T.THEMES) {
-    const m = JSON.parse(fs.readFileSync(path.join(THEMES_DIR, theme.folder, 'manifest.json'), 'utf8'));
+    const m = readManifest(theme.folder);
     assert.deepEqual(Object.keys(m), ['manifest_version', 'name', 'version', 'description', 'theme']);
     assert.equal(m.manifest_version, 3);
     assert.match(m.version, /^\d+\.\d+\.\d+$/);
     assert.deepEqual(Object.keys(m.theme), ['colors'], 'no images, tints or properties');
     for (const [key, value] of Object.entries(m.theme.colors)) {
       assert.ok(CHROMIUM_COLOR_KEYS.has(key), `${theme.folder}: ${key} is not a Chromium theme colour`);
-      assert.ok(!key.startsWith('ntp_'), `${theme.folder}: ${key} would change the New Tab page`);
+      assert.ok(!key.startsWith('ntp_'), `${theme.folder}: ${key} is a New Tab page key`);
+      // Chromium 141 does not theme private windows (browser_frame.cc).
+      assert.ok(!key.includes('incognito'), `${theme.folder}: ${key} is never painted`);
       assert.ok(Array.isArray(value) && value.length === 3 &&
                 value.every(v => Number.isInteger(v) && v >= 0 && v <= 255), `${theme.folder}: ${key}`);
     }
+    // The table and the file Chromium loads agree, key for key.
+    assert.deepEqual(shipped(theme.folder), theme.colors, theme.folder);
   }
-  for (const key of T.KEYS) assert.ok(CHROMIUM_COLOR_KEYS.has(key) && !key.startsWith('ntp_'), key);
+  for (const key of T.KEYS) assert.ok(CHROMIUM_COLOR_KEYS.has(key), key);
 });
 
-test('themes: every text holds 4.5:1 and every icon 3:1 on its background', () => {
+test('themes: every text holds 4.5:1 and every icon 3:1 in each state Chromium draws, bar named exceptions', () => {
   for (const theme of T.THEMES) {
-    const rows = T.check(theme);
-    assert.ok(rows.length >= 4, theme.folder);
-    for (const r of rows) assert.ok(r.pass, `${theme.folder}: ${r.fg} on ${r.bg} is ${r.ratio}:1, needs ${r.min}:1`);
-    for (const [fg, bg, min] of T.PAIRS) {
-      if (theme.colors[fg] && theme.colors[bg]) assert.ok(contrast(theme.colors[fg], theme.colors[bg]) >= min);
+    const rows = shippedStates(theme.folder);
+    const failing = rows.filter(([, ratio, min]) => ratio < min).map(([state]) => state);
+    if (theme.role === 'reference') {
+      // Only the reported keys are set; Chromium derives the rest.
+      assert.equal(rows.length, 6, theme.folder);
+    } else {
+      assert.equal(rows.length, THEME_STATES.length, `${theme.folder}: every state is determined`);
+    }
+    // A failure is allowed only where the theme names it, with its reason,
+    // and only among the states Chromium decides; a named exception that
+    // passes is stale.
+    assert.deepEqual(failing.sort(), Object.keys(theme.exceptions).sort(), theme.folder);
+    for (const [state, reason] of Object.entries(theme.exceptions)) {
+      assert.ok(ALLOWED_EXCEPTIONS.has(state), `${theme.folder}: ${state} is the theme's to fix`);
+      assert.ok(typeof reason === 'string' && reason.length > 20, `${theme.folder}: ${state} needs its reason`);
+    }
+    // The generator reports the same states, with the same verdicts.
+    const reported = T.check(theme);
+    assert.deepEqual(reported.map(r => r.state), rows.map(([state]) => state), theme.folder);
+    for (const [i, [state, ratio, min]] of rows.entries()) {
+      assert.equal(reported[i].ratio, Math.round(ratio * 100) / 100, `${theme.folder}: ${state}`);
+      assert.equal(reported[i].status, ratio >= min ? 'ok' : 'exception', `${theme.folder}: ${state}`);
     }
   }
+  // Only the default carries exceptions: the alternatives pass every state.
+  assert.deepEqual(T.THEMES.filter(t => Object.keys(t.exceptions).length).map(t => t.role), ['default']);
 });
 
-test('themes: the default is the Bauhaus theme Codex installed; the reference is 0.5.0', () => {
+test('themes: the default has the composition Codex described for 0.5.2; the reference is 0.5.0', () => {
   const defaults = T.THEMES.filter(t => t.role === 'default');
   assert.equal(defaults.length, 1);
-  const c = defaults[0].colors;
+  const c = shipped(defaults[0].folder);
   // Blue frame, yellow active tab and toolbar, dark-red icons, white
-  // address field, dark text (Codex's description of the installed 0.5.2).
+  // address field, dark text: Codex's description of the installed 0.5.2,
+  // in the identity's own blue and yellow (0.5.2's exact values were not
+  // provided).
+  assert.equal(c.frame, '#1f4e99');
   assert.equal(c.frame, A.palette.light.blue);
+  assert.equal(c.toolbar, '#e0a817');
   assert.equal(c.toolbar, A.palette.light.yellow);
-  const [r, g, b] = T.rgb(c.toolbar_button_icon);
-  assert.ok(r > 2 * g && r > 2 * b && r < 160, `dark red: ${c.toolbar_button_icon}`);
+  assert.equal(c.toolbar_button_icon, '#7a2318');
   assert.equal(c.omnibox_background, '#ffffff');
-  for (const key of ['tab_text', 'toolbar_text', 'bookmark_text', 'omnibox_text']) assert.equal(c[key], '#161616', key);
-  // Every alternative recombines the same colours.
-  const allowed = new Set([...Object.values(A.palette.light), '#f3efe6', '#161616', '#ffffff', c.toolbar_button_icon]);
+  for (const key of ['tab_text', 'toolbar_text', 'bookmark_text', 'omnibox_text']) assert.equal(c[key], A.grounds.ink, key);
+  // Every theme but the reference recombines the same colours.
+  const allowed = new Set([...Object.values(A.palette.light), A.grounds.paper, A.grounds.ink, '#ffffff', '#7a2318']);
   for (const theme of T.THEMES.filter(t => t.role !== 'reference')) {
-    for (const [key, hex] of Object.entries(theme.colors)) assert.ok(allowed.has(hex), `${theme.folder}: ${key} ${hex}`);
+    for (const [key, hex] of Object.entries(shipped(theme.folder))) assert.ok(allowed.has(hex), `${theme.folder}: ${key} ${hex}`);
   }
   const ref = T.THEMES.find(t => t.role === 'reference');
-  assert.deepEqual(ref.colors, {
+  assert.deepEqual(shipped(ref.folder), {
     frame: '#1d4f9e', frame_inactive: '#111111', toolbar: '#f4f1ea', toolbar_text: '#111111',
     tab_text: '#111111', bookmark_text: '#111111', omnibox_background: '#ffffff', omnibox_text: '#111111',
   });
