@@ -1,0 +1,113 @@
+/*
+ * Anvers identity: tokens, size and states for the mark rendered by
+ * anvers-identity.js (or written statically from its svg() output).
+ *
+ * The mark stays in the normal flow inside a square box of fixed size, and
+ * the outline never leaves that box, so it can neither cover nor push the
+ * search field and links around it. The colours are scoped to
+ * .anvers-identity, so the page's own tokens are never touched.
+ */
+
+.anvers-identity {
+  --anvers-red: #c0392b;
+  --anvers-yellow: #e0a817;
+  --anvers-blue: #1f4e99;
+  --anvers-mark-size: clamp(96px, 24vmin, 160px);
+  --anvers-wordmark-font: "Futura", "Futura PT", "Century Gothic", "Avenir Next", system-ui, sans-serif;
+
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  max-inline-size: 100%;
+  vertical-align: top;
+}
+
+.anvers-identity .anvers-mark {
+  display: block;
+  flex: none;
+  inline-size: var(--anvers-mark-size);
+  block-size: var(--anvers-mark-size);
+  max-inline-size: 100%;
+  overflow: hidden;
+}
+
+.anvers-mark__shape--red { fill: var(--anvers-red, #c0392b); }
+.anvers-mark__shape--yellow { fill: var(--anvers-yellow, #e0a817); }
+.anvers-mark__shape--blue { fill: var(--anvers-blue, #1f4e99); }
+
+.anvers-identity__wordmark {
+  font-family: var(--anvers-wordmark-font);
+  /* In proportion to the mark, but never smaller than the reader's own
+     text size, so it follows zoom and the browser's font setting. */
+  font-size: max(1rem, calc(var(--anvers-mark-size) * 0.16));
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  /* The tracking adds space after the last letter; this keeps it centred. */
+  margin-inline-start: 0.18em;
+  /* With the wordmark the shape stands on 88 of its 100-unit box, so the
+     band below is always empty: drawing the word slightly into it makes
+     shape and word one group, closer to each other than to what follows. */
+  margin-block-start: calc(var(--anvers-mark-size) * -0.03);
+  text-transform: lowercase;
+  color: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  .anvers-identity {
+    --anvers-red: #e2594b;
+    --anvers-yellow: #ebb935;
+    --anvers-blue: #538ae6;
+  }
+}
+
+/* A page that runs its own theme switch can pin either set. */
+[data-anvers-theme="light"] .anvers-identity,
+.anvers-identity[data-anvers-theme="light"] {
+  --anvers-red: #c0392b;
+  --anvers-yellow: #e0a817;
+  --anvers-blue: #1f4e99;
+}
+
+[data-anvers-theme="dark"] .anvers-identity,
+.anvers-identity[data-anvers-theme="dark"] {
+  --anvers-red: #e2594b;
+  --anvers-yellow: #ebb935;
+  --anvers-blue: #538ae6;
+}
+
+/* Asked for more contrast on a light page, yellow darkens to ochre (3.45:1
+   on paper, 3.6:1 on the demo page); red and blue already pass, and every
+   colour passes on dark. Pins are not nested: where a dark pin applies, on
+   the element or above it, it wins, with or without more contrast. */
+@media (prefers-contrast: more) and (prefers-color-scheme: light) {
+  .anvers-identity {
+    --anvers-yellow: #a87700;
+  }
+}
+
+@media (prefers-contrast: more) {
+  [data-anvers-theme="light"] .anvers-identity:not([data-anvers-theme="dark"] *):not([data-anvers-theme="dark"]),
+  .anvers-identity[data-anvers-theme="light"]:not([data-anvers-theme="dark"] *) {
+    --anvers-yellow: #a87700;
+  }
+}
+
+/* The optional motion: the primitive settles into its distortion, once. */
+.anvers-identity[data-anvers-motion="settle"] .anvers-mark__shape {
+  transition: d 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anvers-identity .anvers-mark__shape {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .anvers-identity .anvers-mark__shape {
+    fill: CanvasText;
+  }
+}

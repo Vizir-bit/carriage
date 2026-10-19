@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Anvers Bauhaus Yellow",
+  "version": "1.0.0",
+  "description": "Ink frame, yellow toolbar and active tab, blue icons, white address field, ink text.",
+  "theme": {
+    "colors": {
+      "frame": [22, 22, 22],
+      "frame_inactive": [22, 22, 22],
+      "toolbar": [224, 168, 23],
+      "toolbar_text": [22, 22, 22],
+      "toolbar_button_icon": [31, 78, 153],
+      "tab_text": [22, 22, 22],
+      "tab_background_text": [255, 255, 255],
+      "tab_background_text_inactive": [255, 255, 255],
+      "bookmark_text": [22, 22, 22],
+      "omnibox_background": [255, 255, 255],
+      "omnibox_text": [22, 22, 22]
+    }
+  }
+}

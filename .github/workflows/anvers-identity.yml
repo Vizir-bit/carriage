@@ -1,0 +1,49 @@
+name: Anvers identity — tests
+
+on:
+  push:
+    paths:
+      - 'anvers-identity/**'
+      - '.github/workflows/anvers-identity.yml'
+  pull_request:
+    paths:
+      - 'anvers-identity/**'
+      - '.github/workflows/anvers-identity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: anvers-identity
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test test/unit.test.js
+      - name: Browser tests
+        run: |
+          set -o pipefail
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node --test test/browser.test.mjs | tee browser.log
+          # Only the previews may be skipped here.
+          grep -qx '# skipped 1' browser.log
+      - name: Browser tests in full Chromium
+        # The default run uses Playwright's headless shell; a full browser
+        # behaves like the installed Anvers (it asks for a favicon, for one).
+        run: |
+          set -o pipefail
+          ANVERS_CHROMIUM="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          export ANVERS_CHROMIUM
+          node --test test/browser.test.mjs | tee browser-full.log
+          grep -qx '# skipped 1' browser-full.log

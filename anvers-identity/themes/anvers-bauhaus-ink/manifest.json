@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Anvers Bauhaus Ink",
+  "version": "1.0.0",
+  "description": "Ink frame, paper toolbar and active tab, red icons, white address field, ink text.",
+  "theme": {
+    "colors": {
+      "frame": [22, 22, 22],
+      "frame_inactive": [22, 22, 22],
+      "toolbar": [243, 239, 230],
+      "toolbar_text": [22, 22, 22],
+      "toolbar_button_icon": [192, 57, 43],
+      "tab_text": [22, 22, 22],
+      "tab_background_text": [255, 255, 255],
+      "tab_background_text_inactive": [255, 255, 255],
+      "bookmark_text": [22, 22, 22],
+      "omnibox_background": [255, 255, 255],
+      "omnibox_text": [22, 22, 22]
+    }
+  }
+}

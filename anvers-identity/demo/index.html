@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'">
+<meta name="color-scheme" content="light dark">
+<title>Anvers</title>
+<link rel="stylesheet" href="../anvers-identity.css">
+<link rel="stylesheet" href="demo.css">
+<script src="../anvers-identity.js" defer></script>
+<script src="demo.js" defer></script>
+</head>
+<body>
+<main class="home">
+  <h1 class="home__identity">
+    <span class="anvers-identity" data-anvers-identity data-seed="random" data-wordmark="true"><!-- static default: AnversIdentity.svg('anvers', {label: '', size: 160, align: 'baseline'}) -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="160" height="160" class="anvers-mark" focusable="false" aria-hidden="true" data-anvers-seed="anvers" data-anvers-grammar="3"><path class="anvers-mark__shape anvers-mark__shape--blue" fill="#1f4e99" d="M 40.85 28.97 L 92.10 82.74 L 11.56 88.00 Z"/></svg>
+      <span class="anvers-identity__wordmark">anvers</span>
+    </span>
+  </h1>
+
+  <form class="home__search" role="search" action="" method="get">
+    <label class="visually-hidden" for="q">Search</label>
+    <input id="q" name="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search" enterkeyhint="search">
+    <button type="submit">Search</button>
+  </form>
+
+  <nav class="home__links" aria-label="Links">
+    <ul>
+      <li><a href="https://plato.stanford.edu/">Stanford Encyclopedia</a></li>
+      <li><a href="https://www.gutenberg.org/">Project Gutenberg</a></li>
+      <li><a href="https://archive.org/">Internet Archive</a></li>
+      <li><a href="https://gallica.bnf.fr/">Gallica</a></li>
+      <li><a href="https://en.wikipedia.org/">Wikipedia</a></li>
+    </ul>
+  </nav>
+
+  <!-- Revealed by demo.js, which is what makes the button work; until then
+       it holds its place, unseen and out of reach, so nothing moves. -->
+  <p class="home__seed" data-pending>
+    <span>Seed <output id="seed" for="reroll">anvers</output></span>
+    <button type="button" id="reroll">Draw another</button>
+  </p>
+  <p class="home__status" id="status" role="status"></p>
+</main>
+</body>
+</html>
