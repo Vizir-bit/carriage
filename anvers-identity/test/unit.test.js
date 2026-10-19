@@ -491,6 +491,9 @@ const THEME_STATES = [
   ['globe on the active tab', '#5f6368', 'toolbar', 3],
   ['background tab text', 'tab_background_text', TAB_FILL, 4.5],
   ['globe on a background tab', '#5f6368', TAB_FILL, 3],
+  ['globe on a hovered background tab', '#5f6368', {over: 'toolbar', under: TAB_FILL, share: 0.4}, 3],
+  ['globe on a selected tab', '#5f6368', {over: 'toolbar', under: TAB_FILL, share: 0.75}, 3],
+  ['globe on a hovered selected tab', '#5f6368', {over: 'toolbar', under: TAB_FILL, share: 0.85}, 3],
   ['hovered background tab text', 'tab_background_text', {over: 'toolbar', under: TAB_FILL, share: 0.4}, 4.5],
   ['selected tab text', 'tab_text', {over: 'toolbar', under: TAB_FILL, share: 0.75}, 4.5],
   ['hovered selected tab text', 'tab_background_text', {over: 'toolbar', under: TAB_FILL, share: 0.85}, 4.5],
@@ -499,7 +502,12 @@ const THEME_STATES = [
   ['selected tab text, unfocused window', 'tab_text', {over: 'toolbar', under: TAB_FILL_UNFOCUSED, share: 0.75}, 4.5],
   ['hovered selected tab text, unfocused window', 'tab_background_text_inactive', {over: 'toolbar', under: TAB_FILL_UNFOCUSED, share: 0.85}, 4.5],
   ['new-tab button, unfocused window', {over: 'toolbar_button_icon', under: TAB_FILL_UNFOCUSED, share: 0x6E / 255}, TAB_FILL_UNFOCUSED, 3],
+  ['globe on a background tab, unfocused window', '#5f6368', TAB_FILL_UNFOCUSED, 3],
+  ['globe on a hovered background tab, unfocused window', '#5f6368', {over: 'toolbar', under: TAB_FILL_UNFOCUSED, share: 0.4}, 3],
+  ['globe on a selected tab, unfocused window', '#5f6368', {over: 'toolbar', under: TAB_FILL_UNFOCUSED, share: 0.75}, 3],
+  ['globe on a hovered selected tab, unfocused window', '#5f6368', {over: 'toolbar', under: TAB_FILL_UNFOCUSED, share: 0.85}, 3],
 ];
+const fixedColour = ([, fg]) => typeof fg === 'string' && fg.startsWith('#');
 
 function readManifest(folder) {
   return JSON.parse(fs.readFileSync(path.join(THEMES_DIR, folder, 'manifest.json'), 'utf8'));
@@ -528,24 +536,42 @@ function statesOf(colors) {
 }
 const shippedStates = folder => statesOf(shipped(folder));
 // Whether no colour for a derived state's foreground key (one Chromium mixes,
-// or reuses on another fill), searched over 16 levels per channel, holds that
-// state and the key's primary states together, the other colours staying as
-// they are: then the composition, not the theme's choice of that colour,
-// decides the state. A primary state never qualifies; a fixed foreground,
-// which no key sets, always does.
+// or reuses on another fill) holds that state and the key's primary states
+// together, the other colours staying as they are: then the state is
+// accepted as the composition's, not the theme's choice of that colour. The
+// search tries all 16,777,216 colours a manifest can hold. A primary state
+// never qualifies.
 const unmixed = spec => typeof spec === 'string' || Array.isArray(spec);
 const primary = ([, fg, bg, , use]) => unmixed(fg) && unmixed(bg) && use !== 'reused';
 function noColourHolds(colors, state) {
   const row = THEME_STATES.find(s => s[0] === state);
   const fg = row[1];
-  if (typeof fg === 'string' && fg.startsWith('#')) return true;
   if (primary(row)) return false;
   const key = unmixed(fg) ? fg : fg.over;
-  const relevant = THEME_STATES.filter(s => s[0] === state || (s[1] === key && primary(s)));
-  const levels = Array.from({length: 16}, (_, i) => i * 17);
-  for (const r of levels) for (const g of levels) for (const b of levels) {
-    const trial = {...colors, [key]: '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')};
-    if (relevant.every(([, f, k, min]) => contrast(colourOf(trial, f), colourOf(trial, k)) >= min)) return false;
+  const relevant = THEME_STATES.filter(s => s[0] === state || (s[1] === key && primary(s)))
+    .filter(([, , bg]) => colourOf(colors, bg));
+  // For each row: what a value of each channel adds to the foreground's
+  // relative luminance, and the luminances the foreground must stay outside.
+  const decode = v => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4);
+  const checks = relevant.map(([, f, k, min]) => {
+    const bgLum = luminance(colourOf(colors, k));
+    const base = unmixed(f) ? null : colourOf(colors, f.under);
+    const part = (channel, weight) => {
+      const out = new Float64Array(256);
+      for (let v = 0; v < 256; v++) {
+        const value = base ? Math.round(f.share * v + (1 - f.share) * parseInt(base.slice(1 + 2 * channel, 3 + 2 * channel), 16)) : v;
+        out[v] = weight * decode(value);
+      }
+      return out;
+    };
+    return [part(0, 0.2126), part(1, 0.7152), part(2, 0.0722), (bgLum + 0.05) / min - 0.05, min * (bgLum + 0.05) - 0.05];
+  });
+  for (let colour = 0; colour < 1 << 24; colour++) {
+    const r = colour >> 16, g = (colour >> 8) & 255, b = colour & 255;
+    if (checks.every(([pr, pg, pb, darkest, lightest]) => {
+      const y = pr[r] + pg[g] + pb[b];
+      return y <= darkest || y >= lightest;
+    })) return false;
   }
   return true;
 }
@@ -604,7 +630,7 @@ test('themes: the generator refuses a failing theme, or a limitation that is not
     assert.equal(fs.existsSync(target), false);
     // A limitation named for a state that holds; and one named for a hovered
     // tab whose grey text fails where white would hold.
-    const ink = "    limitations: {\n      'globe on a background tab': FIXED_GLOBE,\n      'hovered selected tab text': LIGHT_ON_LIGHT,";
+    const ink = "    colors: bauhaus({frame: INK, inactive: INK, toolbar: PAPER, text: INK, icons: LIGHT.red}),\n    limitations: {";
     for (const [edits, said] of [
       [[[ink, ink + "\n      'toolbar text': LIGHT_ON_LIGHT,"]], /FAIL toolbar text: [^\n]*\n\s+named as a limitation, but it holds/],
       [[[ink, ink + "\n      'hovered background tab text': LIGHT_ON_LIGHT,"],
@@ -652,15 +678,18 @@ test('themes: every text holds 4.5:1 and every icon 3:1 in each modelled state, 
     const failing = rows.filter(([, ratio, min]) => ratio < min).map(([state]) => state);
     if (theme.role === 'reference') {
       // Only the reported keys are set; Chromium derives the rest.
-      assert.equal(rows.length, 9, theme.folder);
+      assert.equal(rows.length, 16, theme.folder);
     } else {
       assert.equal(rows.length, THEME_STATES.length, `${theme.folder}: every state is determined`);
     }
     // A failure is allowed only where the theme names it as a limitation,
-    // with its reason, and no colour could hold that state; a named
+    // with its reason, and no colour could hold that state; or where the
+    // foreground is a colour Chromium fixes, which no theme names. A named
     // limitation that passes is stale.
-    assert.deepEqual(failing.sort(), Object.keys(theme.limitations).sort(), theme.folder);
+    const fixed = new Set(THEME_STATES.filter(fixedColour).map(([state]) => state));
+    assert.deepEqual(failing.filter(state => !fixed.has(state)).sort(), Object.keys(theme.limitations).sort(), theme.folder);
     for (const [state, reason] of Object.entries(theme.limitations)) {
+      assert.ok(!fixed.has(state), `${theme.folder}: ${state} is Chromium's, not named`);
       assert.ok(noColourHolds(shipped(theme.folder), state), `${theme.folder}: ${state} is the theme's to fix`);
       assert.ok(typeof reason === 'string' && reason.length > 20, `${theme.folder}: ${state} needs its reason`);
     }
@@ -669,7 +698,7 @@ test('themes: every text holds 4.5:1 and every icon 3:1 in each modelled state, 
     assert.deepEqual(reported.map(r => r.state), rows.map(([state]) => state), theme.folder);
     for (const [i, [state, ratio, min]] of rows.entries()) {
       assert.equal(reported[i].ratio, Math.round(ratio * 100) / 100, `${theme.folder}: ${state}`);
-      assert.equal(reported[i].status, ratio >= min ? 'ok' : 'limitation', `${theme.folder}: ${state}`);
+      assert.equal(reported[i].status, ratio >= min ? 'ok' : fixed.has(state) ? 'fixed' : 'limitation', `${theme.folder}: ${state}`);
     }
   }
   // The search tells a limitation from a choice: under 0.5.2's blue frame and
@@ -688,17 +717,40 @@ test('themes: every text holds 4.5:1 and every icon 3:1 in each modelled state, 
   assert.equal(noColourHolds(shipped('anvers-bauhaus-ink'), 'address bar chip text'), false);
 });
 
+test('themes: the search for a holding colour is exhaustive, in the module and here', () => {
+  // A review's case: on a near-black toolbar, only colours with a luminance
+  // between 0.18326 and 0.18333 hold both the chip and the address text,
+  // #0079d2 among them; a coarse grid misses every one.
+  const narrow = {
+    frame: '#000000', frame_inactive: '#000000', toolbar: '#00070e', toolbar_text: '#ffffff',
+    toolbar_button_icon: '#ffffff', tab_text: '#ffffff', tab_background_text: '#ffffff',
+    tab_background_text_inactive: '#ffffff', bookmark_text: '#ffffff', omnibox_background: '#ffffff', omnibox_text: '#111111',
+  };
+  const held = statesOf({...narrow, omnibox_text: '#0079d2'});
+  for (const state of ['address text', 'address bar chip text']) {
+    const [, ratio, min] = held.find(([name]) => name === state);
+    assert.ok(ratio >= min, state);
+  }
+  assert.equal(noColourHolds(narrow, 'address bar chip text'), false);
+  assert.equal(T.imposed({colors: narrow, limitations: {}}, 'address bar chip text'), false);
+  // A mixed foreground: under the default's blue toolbar, light icons hold
+  // the dimmed new-tab button of an unfocused window as well as the toolbar.
+  const greyIcons = {...shipped('anvers-bauhaus'), toolbar_button_icon: '#405060'};
+  assert.equal(noColourHolds(greyIcons, 'new-tab button, unfocused window'), false);
+  assert.equal(T.imposed({colors: greyIcons, limitations: {}}, 'new-tab button, unfocused window'), false);
+  // And where nothing holds, both say so.
+  assert.equal(T.imposed(T.THEMES[0], 'hovered selected tab text'), true);
+  assert.equal(noColourHolds(shipped('anvers-bauhaus'), 'hovered selected tab text'), true);
+});
+
 test('themes: the default is Codex\'s theme 0.5.4, without ntp_* keys; the reference is 0.5.0', () => {
   const defaults = T.THEMES.filter(t => t.role === 'default');
   assert.equal(defaults.length, 1);
-  // Codex's report of the installed theme.colors of 0.5.2, on the pull
-  // request (19 October 2026), less ntp_background, ntp_text, ntp_link and
-  // ntp_header, with the reported changes of 0.5.3 and 0.5.4: frame and
-  // background tabs yellow [242,195,25] with ink text [17,17,17]; toolbar and
-  // active tab blue [29,79,158] with paper text and icons [244,241,234].
+  // Codex's report of the installed 0.5.4 theme.colors, on the pull request
+  // (19 October 2026), less ntp_background, ntp_text, ntp_link and ntp_header.
   assert.deepEqual(shipped(defaults[0].folder), {
     frame: '#f2c319', frame_inactive: '#111111', background_tab: '#f2c319', background_tab_inactive: '#111111',
-    toolbar: '#1d4f9e', toolbar_text: '#f4f1ea', toolbar_button_icon: '#f4f1ea', button_background: '#f2c319',
+    toolbar: '#1d4f9e', toolbar_text: '#f4f1ea', toolbar_button_icon: '#f4f1ea', button_background: '#1d4f9e',
     tab_text: '#f4f1ea', tab_background_text: '#111111', tab_background_text_inactive: '#f4f1ea',
     bookmark_text: '#f4f1ea', omnibox_background: '#ffffff', omnibox_text: '#111111',
   });

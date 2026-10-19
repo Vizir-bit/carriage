@@ -3,7 +3,8 @@
 // manifest.json, under themes/ (or the directory given), and prints each
 // theme's contrast in each state the module models. Stops without writing if
 // any text or icon falls below its contrast, unless the theme names that
-// state as a limitation and no colour could hold it.
+// state as a limitation and no colour could hold it. A colour Chromium fixes,
+// such as its grey globe, is reported but never named.
 //
 //   node bin/anvers-themes.js [directory]
 'use strict';
@@ -18,7 +19,7 @@ let failed = false;
 for (const theme of THEMES) {
   process.stdout.write(`${theme.folder} (${theme.role})\n`);
   for (const r of check(theme)) {
-    const mark = {ok: 'ok  ', limitation: 'LIMIT', FAIL: 'FAIL'}[r.status];
+    const mark = {ok: 'ok  ', fixed: 'FIXED', limitation: 'LIMIT', FAIL: 'FAIL'}[r.status];
     process.stdout.write(`  ${mark} ${r.state}: ${r.fg} on ${r.bg}, ${r.ratio.toFixed(2)}:1 (needs ${r.min}:1)\n`);
     if (r.reason) process.stdout.write(`        ${r.reason}\n`);
     if (r.status === 'FAIL') failed = true;

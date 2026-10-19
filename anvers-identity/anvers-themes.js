@@ -39,8 +39,9 @@ const KEYS = Object.freeze([
   'bookmark_text', 'omnibox_background', 'omnibox_text',
 ]);
 
-// Each state Chromium 141 draws a text or an icon in, what it sits on, and the
-// contrast it needs: 4.5:1 for text, 3:1 for icons. A background is a key,
+// The states the model computes, as Chromium 141 draws them: a text or an
+// icon, what it sits on, and the contrast it needs: 4.5:1 for text, 3:1 for
+// icons. They are not every state Chromium draws; the README lists others. A background is a key,
 // 'a|b' for a key that falls back to another when unset (a background tab is
 // filled with background_tab, or else the frame), or a mix [over, under,
 // share of over]: Chromium fills a hovered background tab with 40% of the
@@ -69,6 +70,9 @@ const STATES = Object.freeze([
   ['globe on the active tab', GLOBE, 'toolbar', 3],
   ['background tab text', 'tab_background_text', TAB, 4.5],
   ['globe on a background tab', GLOBE, TAB, 3],
+  ['globe on a hovered background tab', GLOBE, ['toolbar', TAB, HOVER], 3],
+  ['globe on a selected tab', GLOBE, ['toolbar', TAB, SELECTED], 3],
+  ['globe on a hovered selected tab', GLOBE, ['toolbar', TAB, SELECTED_HOVER], 3],
   ['hovered background tab text', 'tab_background_text', ['toolbar', TAB, HOVER], 4.5],
   ['selected tab text', 'tab_text', ['toolbar', TAB, SELECTED], 4.5],
   ['hovered selected tab text', 'tab_background_text', ['toolbar', TAB, SELECTED_HOVER], 4.5],
@@ -77,6 +81,10 @@ const STATES = Object.freeze([
   ['selected tab text, unfocused window', 'tab_text', ['toolbar', TAB_UNFOCUSED, SELECTED], 4.5],
   ['hovered selected tab text, unfocused window', 'tab_background_text_inactive', ['toolbar', TAB_UNFOCUSED, SELECTED_HOVER], 4.5],
   ['new-tab button, unfocused window', ['toolbar_button_icon', TAB_UNFOCUSED, DIMMED], TAB_UNFOCUSED, 3],
+  ['globe on a background tab, unfocused window', GLOBE, TAB_UNFOCUSED, 3],
+  ['globe on a hovered background tab, unfocused window', GLOBE, ['toolbar', TAB_UNFOCUSED, HOVER], 3],
+  ['globe on a selected tab, unfocused window', GLOBE, ['toolbar', TAB_UNFOCUSED, SELECTED], 3],
+  ['globe on a hovered selected tab, unfocused window', GLOBE, ['toolbar', TAB_UNFOCUSED, SELECTED_HOVER], 3],
 ]);
 
 // A full theme from five choices: the frame, the unfocused window's frame, the
@@ -103,7 +111,6 @@ function bauhaus({frame, inactive, toolbar, text, icons}) {
 const LIGHT_ON_LIGHT = 'Chromium keeps the light text and close button of background tabs on a fill that is 85% the light toolbar colour';
 const DARK_ON_DARK = 'Chromium keeps the dark text and close button of background tabs on a fill that is 85% the dark toolbar colour';
 const DIMMED_ICON = 'Chromium draws the button in the dark icon colour at 43% opacity over the dark unfocused frame';
-const FIXED_GLOBE = "Chromium's grey globe is fixed; on this fill no key can change it";
 const CHIP = 'the address text must be dark on the white field, and Chromium reuses it for the chip on the dark toolbar';
 
 const THEMES = Object.freeze([
@@ -112,10 +119,8 @@ const THEMES = Object.freeze([
     name: 'Anvers Bauhaus',
     role: 'default',
     description: 'Yellow frame and background tabs with ink text; blue toolbar and active tab with paper text and icons; white address field.',
-    // Codex's installed theme, version 0.5.4, without its ntp_* keys: 0.5.2
-    // as Codex reported it on the pull request, with the changes Codex
-    // reported for 0.5.3 and 0.5.4 (the two colours of 0.5.2 reversed). Keys
-    // Codex did not report as changed keep their 0.5.2 values.
+    // Codex's installed theme, version 0.5.4, as Codex reported its full
+    // theme.colors on the pull request, without its ntp_* keys.
     colors: {
       frame: '#f2c319',
       frame_inactive: '#111111',
@@ -124,7 +129,7 @@ const THEMES = Object.freeze([
       toolbar: '#1d4f9e',
       toolbar_text: '#f4f1ea',
       toolbar_button_icon: '#f4f1ea',
-      button_background: '#f2c319',
+      button_background: '#1d4f9e',
       tab_text: '#f4f1ea',
       tab_background_text: '#111111',
       tab_background_text_inactive: '#f4f1ea',
@@ -134,7 +139,6 @@ const THEMES = Object.freeze([
     },
     limitations: {
       'address bar chip text': CHIP,
-      'globe on the active tab': FIXED_GLOBE,
       'hovered selected tab text': DARK_ON_DARK,
     },
   },
@@ -145,7 +149,6 @@ const THEMES = Object.freeze([
     description: 'Ink frame, paper toolbar and active tab, red icons, white address field, ink text.',
     colors: bauhaus({frame: INK, inactive: INK, toolbar: PAPER, text: INK, icons: LIGHT.red}),
     limitations: {
-      'globe on a background tab': FIXED_GLOBE,
       'hovered selected tab text': LIGHT_ON_LIGHT,
       'hovered selected tab text, unfocused window': LIGHT_ON_LIGHT,
       'new-tab button, unfocused window': DIMMED_ICON,
@@ -158,8 +161,6 @@ const THEMES = Object.freeze([
     description: 'Ink frame, yellow toolbar and active tab, blue icons, white address field, ink text.',
     colors: bauhaus({frame: INK, inactive: INK, toolbar: LIGHT.yellow, text: INK, icons: LIGHT.blue}),
     limitations: {
-      'globe on the active tab': FIXED_GLOBE,
-      'globe on a background tab': FIXED_GLOBE,
       'hovered selected tab text': LIGHT_ON_LIGHT,
       'hovered selected tab text, unfocused window': LIGHT_ON_LIGHT,
       'new-tab button, unfocused window': DIMMED_ICON,
@@ -184,9 +185,7 @@ const THEMES = Object.freeze([
       omnibox_background: '#ffffff',
       omnibox_text: '#111111',
     },
-    limitations: {
-      'globe on a background tab': FIXED_GLOBE,
-    },
+    limitations: {},
   },
 ]);
 
@@ -227,31 +226,56 @@ const keyOf = spec => (typeof spec === 'string' ? spec : spec[0]);
 // colour on another fill; the others are a key's primary states.
 const derived = row => typeof row[1] !== 'string' || typeof row[2] !== 'string' || row[4] === 'reused';
 
-// Whether no colour at all for a derived state's foreground key could hold
-// the state together with that key's primary states, the theme's other
-// colours staying as they are. Only such a state is the composition's
-// limitation rather than the theme's choice; a primary state never is, and
-// a fixed foreground, which no key sets, always is. Searched over 18 levels
-// per channel.
-const LEVELS = Array.from({length: 18}, (_, i) => Math.min(255, i * 15));
+// Whether no colour for a derived state's foreground key holds the state
+// together with that key's primary states, the theme's other colours staying
+// as they are. Only such a state is accepted as the composition's limitation
+// rather than the theme's choice; a primary state never is, and a fixed
+// foreground, which no key sets, always is. The search is exhaustive over the
+// 16,777,216 colours a manifest can hold: each row's luminance is a sum of
+// three per-channel terms, read from tables, and its contrast bound becomes a
+// luminance window.
+const LINEAR = Array.from({length: 256}, (_, v) => {
+  const x = v / 255;
+  return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+});
+const WEIGHTS = [0.2126, 0.7152, 0.0722];
 function imposed(theme, state) {
   const row = STATES.find(s => s[0] === state);
   if (!row) return false;
   const key = keyOf(row[1]);
   if (key.startsWith('#')) return true;
   if (!derived(row)) return false;
-  const plain = STATES.filter(s => s[1] === key && !derived(s));
-  for (const r of LEVELS) for (const g of LEVELS) for (const b of LEVELS) {
-    const colors = {...theme.colors, [key]: hex([r, g, b])};
-    if ([row, ...plain].every(([, fg, bg, min]) => contrast(resolve(colors, fg), resolve(colors, bg)) >= min)) return false;
+  const rows = [row, ...STATES.filter(s => s[1] === key && !derived(s))]
+    .filter(([, , bg]) => resolve(theme.colors, bg));
+  const tests = rows.map(([, fg, bg, min]) => {
+    const under = typeof fg === 'string' ? null : rgb(resolve(theme.colors, fg[1]));
+    const share = typeof fg === 'string' ? 1 : fg[2];
+    // The luminance each value of each channel adds to the foreground.
+    const tables = WEIGHTS.map((w, i) => Float64Array.from({length: 256}, (_, v) =>
+      w * LINEAR[under ? Math.round(share * v + (1 - share) * under[i]) : v]));
+    const l = luminance(resolve(theme.colors, bg));
+    return {tables, low: (l + 0.05) / min - 0.05, high: min * (l + 0.05) - 0.05};
+  });
+  for (let r = 0; r < 256; r++) {
+    for (let g = 0; g < 256; g++) {
+      for (let b = 0; b < 256; b++) {
+        let holds = true;
+        for (const {tables, low, high} of tests) {
+          const y = tables[0][r] + tables[1][g] + tables[2][b];
+          if (y > low && y < high) { holds = false; break; }
+        }
+        if (holds) return false;
+      }
+    }
   }
   return true;
 }
 
 // Every state a theme's keys determine, with its contrast and its status:
-// 'ok'; 'limitation', a state the theme names with its reason and that no
-// colour could hold; or 'FAIL', which includes a named limitation that holds
-// or that a colour could hold.
+// 'ok'; 'fixed', a failing state whose foreground is a colour Chromium fixes,
+// such as the grey globe, which no theme names; 'limitation', a state the
+// theme names with its reason and that no colour could hold; or 'FAIL',
+// which includes a named limitation that holds or that a colour could hold.
 function check(theme) {
   const rows = [];
   for (const [state, fgSpec, bgSpec, min] of STATES) {
@@ -261,6 +285,7 @@ function check(theme) {
     const named = theme.limitations[state];
     let status = 'ok', reason;
     if (ratio >= min && named) [status, reason] = ['FAIL', 'named as a limitation, but it holds'];
+    else if (ratio < min && keyOf(fgSpec).startsWith('#')) [status, reason] = ['fixed', "Chromium's own colour, which no key sets"];
     else if (ratio < min && named && imposed(theme, state)) [status, reason] = ['limitation', named];
     else if (ratio < min && named) [status, reason] = ['FAIL', 'named as a limitation, but a colour could hold it'];
     else if (ratio < min) status = 'FAIL';

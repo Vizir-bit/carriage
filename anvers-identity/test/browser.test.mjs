@@ -677,33 +677,43 @@ test('file: pages load the classic script; the ES module entry loads over http',
   await grid.close();
 });
 
-test('themes: --load-extension installs each folder, it outlasts a restart, and the homepage is kept', {skip}, async t => {
-  // Themes need a full browser (the headless shell has no extensions), so
-  // this test always uses one: Anvers itself when ANVERS_CHROMIUM is set,
-  // otherwise Playwright's full Chromium build. Playwright passes
-  // --disable-extensions by default, and under it Chromium skips
-  // --load-extension altogether (extension_service.cc), so that default is
-  // dropped and the folder is given through --load-extension alone, the
-  // switch Codex's packaging uses.
+// Installs each theme in a full Chromium and checks what a new tab opens.
+// Themes need a full browser (the headless shell has no extensions), so this
+// always uses one: Anvers itself when ANVERS_CHROMIUM is set, otherwise
+// Playwright's full Chromium build. Playwright passes --disable-extensions by
+// default, and under it Chromium skips --load-extension altogether
+// (extension_service.cc), so that default is dropped and each folder is given
+// through --load-extension alone, the switch Codex's packaging uses. `extra`
+// is an extension loaded beside every theme, and without one.
+async function checkThemes(t, themes, extra) {
   const os = await import('node:os');
-  const {THEMES, rgb} = require('../anvers-themes.js');
+  const {rgb} = require('../anvers-themes.js');
   const executablePath = process.env.ANVERS_CHROMIUM || playwright.chromium.executablePath();
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'anvers-theme-'));
-  const launch = (profile, args) => playwright.chromium.launchPersistentContext(path.join(work, profile), {
-    executablePath, headless: true, ignoreDefaultArgs: ['--disable-extensions'], args,
+  const launch = (profile, dirs) => playwright.chromium.launchPersistentContext(path.join(work, profile), {
+    executablePath, headless: true, ignoreDefaultArgs: ['--disable-extensions'],
+    args: [...dirs, ...(extra ? [extra] : [])].length ? [`--load-extension=${[...dirs, ...(extra ? [extra] : [])].join(',')}`] : [],
   });
-  // The page a new tab opens, with any console error or page error on it.
+  // The page a new tab opens: whether it is Chromium's own New Tab page
+  // (<ntp-app>, or the third-party page Chromium serves when the default
+  // search engine is not Google), its ground (the body's background, or the
+  // root element's where the body is transparent), and any console error or
+  // page error on it, up to half a second after load.
   const homepage = async context => {
     const page = await context.newPage();
     const errors = [];
     page.on('console', m => { if (m.type() === 'error') errors.push(`${m.text()} (${m.location().url})`); });
     page.on('pageerror', e => errors.push(e.message));
     await page.goto('chrome://newtab/');
-    await page.waitForLoadState('load');
-    const look = await page.evaluate(() => ({
-      stock: !!document.querySelector('ntp-app'),
-      background: getComputedStyle(document.body).backgroundColor,
-    }));
+    await page.waitForTimeout(500);
+    const look = await page.evaluate(() => {
+      const opaque = c => !/^rgba\(.*, 0\)$/.test(c) && c !== 'transparent';
+      const body = getComputedStyle(document.body).backgroundColor;
+      return {
+        stock: !!document.querySelector('ntp-app') || location.href.startsWith('chrome://new-tab-page-third-party'),
+        ground: opaque(body) ? body : getComputedStyle(document.documentElement).backgroundColor,
+      };
+    });
     await page.close();
     return {...look, errors};
   };
@@ -711,19 +721,20 @@ test('themes: --load-extension installs each folder, it outlasts a restart, and 
     const prefs = JSON.parse(fs.readFileSync(path.join(work, profile, 'Default', 'Preferences'), 'utf8'));
     return prefs.extensions && prefs.extensions.theme;
   };
+  let plain;
   try {
-    // The homepage with no theme. Chromium's own New Tab page (the one with
-    // <ntp-app>) takes a theme's toolbar colour when the theme sets no
-    // ntp_background, so there the colour shows the theme being painted.
-    // Anvers replaces that page with its own homepage, which must keep its
-    // colours under every theme.
+    // The homepage with no theme. Chromium's own New Tab page takes a theme's
+    // toolbar colour when the theme sets no ntp_background, so there the
+    // ground shows the theme being painted. Anvers replaces that page with
+    // its own homepage, whose ground must stay the same under every theme.
+    // Only the ground is compared, not the rest of the page.
     let context = await launch('plain', []);
-    let plain;
     try { plain = await homepage(context); } finally { await context.close(); }
     assert.deepEqual(plain.errors, [], 'the homepage, with no theme');
-    t.diagnostic(`homepage: ${plain.stock ? "Chromium's own New Tab page" : 'a replaced homepage'}, ${plain.background}`);
-    const expected = theme => (plain.stock ? `rgb(${rgb(theme.colors.toolbar).join(', ')})` : plain.background);
-    for (const theme of THEMES) {
+    assert.ok(plain.stock || !/^rgba\(.*, 0\)$/.test(plain.ground), 'the homepage paints no ground to compare');
+    t.diagnostic(`homepage: ${plain.stock ? "Chromium's own New Tab page" : 'a replaced homepage'}, ${plain.ground}`);
+    const expected = theme => (plain.stock ? `rgb(${rgb(theme.colors.toolbar).join(', ')})` : plain.ground);
+    for (const theme of themes) {
       // Chromium writes a compiled theme pack into an unpacked theme's
       // folder, so a copy is loaded, never the committed folder.
       const dir = path.join(work, theme.folder);
@@ -731,7 +742,7 @@ test('themes: --load-extension installs each folder, it outlasts a restart, and 
       fs.copyFileSync(path.join(ROOT, 'themes', theme.folder, 'manifest.json'), path.join(dir, 'manifest.json'));
       const profile = `profile-${theme.folder}`;
       let seen;
-      context = await launch(profile, [`--load-extension=${dir}`]);
+      context = await launch(profile, [dir]);
       try {
         // The theme is installed asynchronously; wait until Chromium has
         // written the compiled pack, then close so that the preferences are
@@ -747,20 +758,36 @@ test('themes: --load-extension installs each folder, it outlasts a restart, and 
       assert.ok(fs.existsSync(path.join(dir, 'Cached Theme.pak')), `${theme.folder}: Chromium compiled no theme pack`);
       assert.deepEqual(seen.errors, [], `${theme.folder}: the homepage`);
       assert.equal(seen.stock, plain.stock, theme.folder);
-      assert.equal(seen.background, expected(theme),
-                   plain.stock ? `${theme.folder}: the theme was not painted` : `${theme.folder}: the theme changed the homepage`);
+      assert.equal(seen.ground, expected(theme),
+                   plain.stock ? `${theme.folder}: the theme was not painted` : `${theme.folder}: the theme changed the homepage's ground`);
       // The same profile, launched again without the switch, keeps the theme.
+      // On a replaced homepage this rests on the preference alone: nothing
+      // there shows the theme being painted.
       context = await launch(profile, []);
       try { seen = await homepage(context); } finally { await context.close(); }
       assert.equal(activeTheme(profile).id, active.id, `${theme.folder}: the theme did not outlast a restart`);
       assert.deepEqual(seen.errors, [], `${theme.folder}: the homepage after a restart`);
-      assert.equal(seen.background, expected(theme), `${theme.folder}: after a restart`);
+      assert.equal(seen.ground, expected(theme), `${theme.folder}: after a restart`);
     }
   } finally {
     fs.rmSync(work, {recursive: true, force: true});
   }
   // Nothing was written into the committed folders.
-  for (const theme of THEMES) assert.deepEqual(fs.readdirSync(path.join(ROOT, 'themes', theme.folder)), ['manifest.json']);
+  for (const theme of themes) assert.deepEqual(fs.readdirSync(path.join(ROOT, 'themes', theme.folder)), ['manifest.json']);
+  return plain;
+}
+
+test('themes: each folder installs through --load-extension and outlasts a restart; Chromium\'s own New Tab page takes the toolbar colour, a replaced homepage keeps its ground', {skip}, async t => {
+  await checkThemes(t, require('../anvers-themes.js').THEMES);
+});
+
+test('themes: with the New Tab page replaced, as in Anvers, the homepage keeps its ground under the default', {skip}, async t => {
+  // A stand-in extension serves its own page on the New Tab route, painted
+  // on the root element; it must be read as a replaced homepage.
+  const plain = await checkThemes(t, require('../anvers-themes.js').THEMES.filter(th => th.role === 'default'),
+                                  path.join(ROOT, 'test', 'fixtures', 'replaced-homepage'));
+  assert.equal(plain.stock, false);
+  assert.equal(plain.ground, 'rgb(244, 241, 234)');
 });
 
 test('previews', {skip: skip || (process.env.ANVERS_PREVIEWS ? false : 'set ANVERS_PREVIEWS=1 to write them')}, async () => {

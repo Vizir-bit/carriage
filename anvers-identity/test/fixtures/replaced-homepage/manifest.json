@@ -1,0 +1,7 @@
+{
+  "manifest_version": 3,
+  "name": "Anvers test: a replaced homepage",
+  "version": "1.0.0",
+  "description": "Stands in for a homepage served on the New Tab routes, as Anvers serves its own. Test use only.",
+  "chrome_url_overrides": {"newtab": "home.html"}
+}
