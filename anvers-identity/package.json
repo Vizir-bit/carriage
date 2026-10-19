@@ -15,10 +15,12 @@
     "./anvers-identity.mjs": "./anvers-identity.mjs",
     "./anvers-identity.css": "./anvers-identity.css",
     "./anvers-default.svg": "./anvers-default.svg",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./anvers-themes.js": "./anvers-themes.js"
   },
   "bin": {
-    "anvers-mark": "bin/anvers-mark.js"
+    "anvers-mark": "bin/anvers-mark.js",
+    "anvers-themes": "bin/anvers-themes.js"
   },
   "scripts": {
     "test": "node --test test/unit.test.js",

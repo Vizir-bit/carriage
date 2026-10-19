@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Anvers Reference 0.5.0",
+  "version": "1.0.0",
+  "description": "The theme bundled with Anvers 0.5.0, without its New Tab page keys.",
+  "theme": {
+    "colors": {
+      "frame": [29, 79, 158],
+      "frame_inactive": [17, 17, 17],
+      "toolbar": [244, 241, 234],
+      "toolbar_text": [17, 17, 17],
+      "tab_text": [17, 17, 17],
+      "bookmark_text": [17, 17, 17],
+      "omnibox_background": [255, 255, 255],
+      "omnibox_text": [17, 17, 17]
+    }
+  }
+}

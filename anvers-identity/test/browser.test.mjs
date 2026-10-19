@@ -677,6 +677,47 @@ test('file: pages load the classic script; the ES module entry loads over http',
   await grid.close();
 });
 
+test('themes: full Chromium loads every theme folder and makes it the active theme', {skip}, async () => {
+  // Themes need a full browser (the headless shell has no extensions), so
+  // this test always uses one: Anvers itself when ANVERS_CHROMIUM is set,
+  // otherwise Playwright's full Chromium build.
+  const os = await import('node:os');
+  const {THEMES} = require('../anvers-themes.js');
+  const executablePath = process.env.ANVERS_CHROMIUM || playwright.chromium.executablePath();
+  for (const theme of THEMES) {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'anvers-theme-'));
+    // Chromium writes a compiled theme pack into an unpacked theme's folder,
+    // so a copy is loaded, never the committed folder.
+    const dir = path.join(work, theme.folder);
+    fs.mkdirSync(dir);
+    fs.copyFileSync(path.join(ROOT, 'themes', theme.folder, 'manifest.json'), path.join(dir, 'manifest.json'));
+    const profile = path.join(work, 'profile');
+    try {
+      const context = await playwright.chromium.launchPersistentContext(profile, {
+        executablePath, headless: true,
+        args: [`--disable-extensions-except=${dir}`, `--load-extension=${dir}`],
+      });
+      try {
+        const page = await context.newPage();
+        await page.goto('about:blank');
+        // The theme is installed asynchronously; wait until Chromium has
+        // written the compiled pack, then close so that the preferences are
+        // flushed.
+        for (let i = 0; i < 50 && !fs.existsSync(path.join(dir, 'Cached Theme.pak')); i++) await page.waitForTimeout(100);
+      } finally {
+        await context.close();
+      }
+      const prefs = JSON.parse(fs.readFileSync(path.join(profile, 'Default', 'Preferences'), 'utf8'));
+      const active = prefs.extensions && prefs.extensions.theme;
+      assert.ok(active && /^[a-p]{32}$/.test(active.id), `${theme.folder}: no active theme recorded`);
+      assert.equal(fs.realpathSync(active.pack), fs.realpathSync(dir), `${theme.folder}: another theme is active`);
+      assert.ok(fs.existsSync(path.join(dir, 'Cached Theme.pak')), `${theme.folder}: Chromium compiled no theme pack`);
+    } finally {
+      fs.rmSync(work, {recursive: true, force: true});
+    }
+  }
+});
+
 test('previews', {skip: skip || (process.env.ANVERS_PREVIEWS ? false : 'set ANVERS_PREVIEWS=1 to write them')}, async () => {
   const shots = [
     ['home-desktop-light', '/demo/index.html?seed=anvers', 1440, 900, 'light'],

@@ -440,10 +440,94 @@ test('the command line: seeds, options, the README example, errors', () => {
 test('the source stays dependency-free, CSP-safe and ASCII', () => {
   // ASCII only, so that the script means the same on a page in any encoding.
   for (const file of ['anvers-identity.js', 'anvers-identity.mjs', 'anvers-identity.css', 'bin/anvers-mark.js',
+                      'anvers-themes.js', 'bin/anvers-themes.js',
                       'test/unit.test.js', 'test/browser.test.mjs', 'demo/demo.js']) {
     assert.doesNotMatch(fs.readFileSync(path.join(ROOT, file), 'latin1'), /[^\x00-\x7F]/, file);
   }
   const src = fs.readFileSync(path.join(ROOT, 'anvers-identity.js'), 'utf8');
   assert.doesNotMatch(src, /\brequire\(|\bimport\s|\beval\(|new Function|innerHTML|outerHTML|insertAdjacentHTML|document\.write|setAttribute\('style'/);
   assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|localStorage|sessionStorage|indexedDB/);
+});
+
+// ---- Browser themes ------------------------------------------------------
+
+const T = require('../anvers-themes.js');
+const THEMES_DIR = path.join(ROOT, 'themes');
+
+// Colour keys Chromium's theme pack reads, written out from
+// chrome/browser/themes/browser_theme_pack.cc rather than taken from the
+// module, so that a typo in the module cannot pass.
+const CHROMIUM_COLOR_KEYS = new Set([
+  'bookmark_text', 'button_background', 'frame', 'frame_inactive', 'frame_incognito',
+  'frame_incognito_inactive', 'ntp_background', 'ntp_header', 'ntp_link', 'ntp_text',
+  'omnibox_background', 'omnibox_text', 'tab_background_text', 'tab_background_text_inactive',
+  'tab_background_text_incognito', 'tab_background_text_incognito_inactive', 'tab_text',
+  'toolbar', 'toolbar_button_icon', 'toolbar_text',
+]);
+
+test('themes: the committed folders are exactly what the generator writes', () => {
+  const folders = fs.readdirSync(THEMES_DIR, {withFileTypes: true}).filter(d => d.isDirectory()).map(d => d.name).sort();
+  assert.deepEqual(folders, T.THEMES.map(t => t.folder).sort());
+  for (const theme of T.THEMES) {
+    const dir = path.join(THEMES_DIR, theme.folder);
+    assert.deepEqual(fs.readdirSync(dir), ['manifest.json'], `${theme.folder} holds only its manifest`);
+    assert.equal(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), T.serialize(theme),
+                 `${theme.folder}: regenerate with node bin/anvers-themes.js`);
+  }
+  const out = execFileSync(process.execPath, [path.join(ROOT, 'bin', 'anvers-themes.js'),
+    fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'anvers-themes-'))], {encoding: 'utf8'});
+  assert.match(out, /4 themes written/);
+  assert.doesNotMatch(out, /FAIL/);
+});
+
+test('themes: colour-only manifests, Chromium keys only, no New Tab page keys', () => {
+  for (const theme of T.THEMES) {
+    const m = JSON.parse(fs.readFileSync(path.join(THEMES_DIR, theme.folder, 'manifest.json'), 'utf8'));
+    assert.deepEqual(Object.keys(m), ['manifest_version', 'name', 'version', 'description', 'theme']);
+    assert.equal(m.manifest_version, 3);
+    assert.match(m.version, /^\d+\.\d+\.\d+$/);
+    assert.deepEqual(Object.keys(m.theme), ['colors'], 'no images, tints or properties');
+    for (const [key, value] of Object.entries(m.theme.colors)) {
+      assert.ok(CHROMIUM_COLOR_KEYS.has(key), `${theme.folder}: ${key} is not a Chromium theme colour`);
+      assert.ok(!key.startsWith('ntp_'), `${theme.folder}: ${key} would change the New Tab page`);
+      assert.ok(Array.isArray(value) && value.length === 3 &&
+                value.every(v => Number.isInteger(v) && v >= 0 && v <= 255), `${theme.folder}: ${key}`);
+    }
+  }
+  for (const key of T.KEYS) assert.ok(CHROMIUM_COLOR_KEYS.has(key) && !key.startsWith('ntp_'), key);
+});
+
+test('themes: every text holds 4.5:1 and every icon 3:1 on its background', () => {
+  for (const theme of T.THEMES) {
+    const rows = T.check(theme);
+    assert.ok(rows.length >= 4, theme.folder);
+    for (const r of rows) assert.ok(r.pass, `${theme.folder}: ${r.fg} on ${r.bg} is ${r.ratio}:1, needs ${r.min}:1`);
+    for (const [fg, bg, min] of T.PAIRS) {
+      if (theme.colors[fg] && theme.colors[bg]) assert.ok(contrast(theme.colors[fg], theme.colors[bg]) >= min);
+    }
+  }
+});
+
+test('themes: the default is the Bauhaus theme Codex installed; the reference is 0.5.0', () => {
+  const defaults = T.THEMES.filter(t => t.role === 'default');
+  assert.equal(defaults.length, 1);
+  const c = defaults[0].colors;
+  // Blue frame, yellow active tab and toolbar, dark-red icons, white
+  // address field, dark text (Codex's description of the installed 0.5.2).
+  assert.equal(c.frame, A.palette.light.blue);
+  assert.equal(c.toolbar, A.palette.light.yellow);
+  const [r, g, b] = T.rgb(c.toolbar_button_icon);
+  assert.ok(r > 2 * g && r > 2 * b && r < 160, `dark red: ${c.toolbar_button_icon}`);
+  assert.equal(c.omnibox_background, '#ffffff');
+  for (const key of ['tab_text', 'toolbar_text', 'bookmark_text', 'omnibox_text']) assert.equal(c[key], '#161616', key);
+  // Every alternative recombines the same colours.
+  const allowed = new Set([...Object.values(A.palette.light), '#f3efe6', '#161616', '#ffffff', c.toolbar_button_icon]);
+  for (const theme of T.THEMES.filter(t => t.role !== 'reference')) {
+    for (const [key, hex] of Object.entries(theme.colors)) assert.ok(allowed.has(hex), `${theme.folder}: ${key} ${hex}`);
+  }
+  const ref = T.THEMES.find(t => t.role === 'reference');
+  assert.deepEqual(ref.colors, {
+    frame: '#1d4f9e', frame_inactive: '#111111', toolbar: '#f4f1ea', toolbar_text: '#111111',
+    tab_text: '#111111', bookmark_text: '#111111', omnibox_background: '#ffffff', omnibox_text: '#111111',
+  });
 });

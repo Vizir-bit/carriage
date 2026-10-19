@@ -13,6 +13,8 @@ The component is portable and has no dependency. One script draws the mark into 
 | `anvers-identity.css` | Size, colour tokens (light and dark), theme pins, more contrast, the optional motion, reduced motion and forced colours. |
 | `anvers-default.svg` | The default seed (`anvers`) as a standalone file: a starting point for an icon. |
 | `bin/anvers-mark.js` | Command-line exporter: a seed in, standalone SVG (or its description as JSON) out. |
+| `themes/` | Browser themes: one standalone folder per theme, each holding a single colour-only `manifest.json`. |
+| `anvers-themes.js`, `bin/anvers-themes.js` | The themes as a table, with their contrast checks, and the script that writes `themes/` from it. |
 | `demo/` | A reference Home page around the mark (search field, links, the seed and a button to draw another). It is a preview harness: searches are shown, not sent. |
 | `previews/` | Screenshots at desktop and narrow widths in both colour schemes, and a grid of twenty-four seeds covering every shape and colour (`previews/grid.html` draws it live). |
 | `test/` | Unit tests (Node only), browser tests (Playwright), the golden marks and the script that rewrites them. |
@@ -86,6 +88,23 @@ The baseline is geometric: every shape's lowest point touches it. A shape standi
 - **Forced colours**: the shape takes the system's text colour.
 - **Without JavaScript**: the static fallback stands, in the same box, and the demo offers no control that only a script could make work.
 
+## Browser themes
+
+Beyond the page, Anvers's colours reach the browser itself (frame, tabs, toolbar, address bar and bookmark text) through Chromium themes. A theme is data, not code, so Chromium stays unmodified. Each folder under `themes/` holds one `manifest.json` with colours only: no images, no tints, and no `ntp_*` key, so no page content changes, the New Tab page included. The themes use the identity's own palette (red `#c0392b`, yellow `#e0a817`, blue `#1f4e99`, paper `#f3efe6`, ink `#161616`), plus white for the address field and a dark red, `#7a2318`, for the toolbar icons.
+
+| Folder | Role | Frame | Toolbar and active tab | Icons | Address field | Text |
+|--------|------|-------|------------------------|-------|---------------|------|
+| `anvers-bauhaus` | default | blue | yellow | dark red | white | ink |
+| `anvers-bauhaus-red` | alternative | red | paper | blue | white | ink |
+| `anvers-bauhaus-ink` | alternative | ink | paper | red | white | ink |
+| `anvers-reference-0.5.0` | reference | `#1d4f9e` | `#f4f1ea` | Chromium's own | `#ffffff` | `#111111` |
+
+The default follows the composition of the theme Codex installed with Anvers 0.5.2, as Codex described it on the pull request: blue frame, yellow active tab and toolbar, dark-red navigation icons, white address field, dark text. Its values here come from the identity's palette; if 0.5.2 uses other values, they replace these in `anvers-themes.js`. Unfocused and private windows take ink, as in Codex's earlier theme, with paper text on the inactive tabs. The reference is Codex's 0.5.0 theme as reported, without its `ntp_*` keys; it sets only the reported keys, and Chromium derives the rest.
+
+Every text holds at least 4.5:1 on its background and every icon at least 3:1. The narrowest margins are paper tab text on the red frame (4.74:1), the dark-red icons on yellow (4.70:1) and the red icons on paper (4.74:1).
+
+`node bin/anvers-themes.js` rewrites the folders from `anvers-themes.js`, printing each theme's contrast table, and writes nothing if any pair fails. To use a theme, Chromium loads its folder with `--load-extension`; installing it stays with Codex. Chromium writes a compiled `Cached Theme.pak` into the folder it loads, so load a copy, as Codex's packaging already does; `themes/.gitignore` keeps that file out of the repository.
+
 ## Tests
 
 The unit tests need only Node (version 18 or later) and take about five seconds. From this folder:
@@ -102,6 +121,7 @@ They pin the documented bounds, safe area, baseline and palette, and check deter
 - **Seeds:** all 32 symbols of new seeds, keywords after trimming, and `daily` in a time zone where local and UTC dates differ.
 - **The SVG output:** hostile and awkward seeds, invalid characters, accented text, empty and bad options.
 - **Files and loading:** the static files, both module formats, the exports map, the command line including the example above, and that the sources stay ASCII, free of dependencies and of anything a strict policy would refuse.
+- **Themes:** the committed folders are exactly what the generator writes; every key is a colour Chromium reads (checked against a list taken from Chromium's own source), with no `ntp_*` key; every value is a valid colour; every contrast passes; the default has the composition Codex described, and the reference has Codex's reported values.
 
 The browser tests use Playwright, a test-only tool; install it first:
 
@@ -127,7 +147,8 @@ They load the demo on fixed seeds (the first circle, square and triangle, and th
 - the settle motion and every way it can fail;
 - the fallback without JavaScript, with no layout shift, and the demo with its script missing;
 - every colour under both schemes, theme pins, nested pins, more contrast and forced colours;
-- the demo's controls, `file:` pages and the ES module entry.
+- the demo's controls, `file:` pages and the ES module entry;
+- every theme folder, loaded into a full Chromium (never the headless shell, which has no extensions): the profile must record that folder as the active theme, and Chromium must have compiled its theme pack. A theme Chromium refuses fails this test.
 
 Any console error, including a Content Security Policy or Trusted Types violation, fails them. The browser version is printed first.
 
@@ -135,4 +156,4 @@ With `ANVERS_CHROMIUM` set to the browser executable inside an app bundle, they 
 
 ## What has been checked, and where
 
-Established: both test files pass in Playwright's Chromium 141 on Linux, and the repository's workflow for this folder runs them on GitHub's Ubuntu runner for every change. Each of twenty deliberate faults, one per gap that two rounds of review found, makes them fail. Not established: behaviour on macOS and inside Anvers 0.4.0 (Chromium 158), which the browser tests can check through `ANVERS_CHROMIUM`. The previews were taken on Linux, without Futura, so the wordmark there is set in a fallback sans-serif; on a Mac it will be Futura.
+Established: both test files pass in Playwright's Chromium 141 on Linux, and the repository's workflow for this folder runs them on GitHub's Ubuntu runner for every change. Each of twenty deliberate faults in the component, one per gap that two rounds of review found, makes them fail. Full Chromium 141 accepts each theme folder and makes it the active theme; a manifest with version 1, a misspelt `theme` key or an invalid version each makes that test fail. Not established for the themes: how they render in a window, and whether they persist across restarts, which only the installed Anvers can show. Not established: behaviour on macOS and inside the installed Anvers (Chromium 158), which the browser tests can check through `ANVERS_CHROMIUM`. The previews were taken on Linux, without Futura, so the wordmark there is set in a fallback sans-serif; on a Mac it will be Futura.
