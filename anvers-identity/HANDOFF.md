@@ -27,7 +27,7 @@ The unit tests need only Node. Run them from the folder with `node --test test/u
 
 The browser tests need Playwright (`npm install --no-save --no-package-lock playwright@1.56.1`). They can drive Anvers itself: set `ANVERS_CHROMIUM` to the executable inside the bundle and run `node --test test/browser.test.mjs`. Inferred: for a plain Chromium bundle that executable is `Contents/MacOS/Chromium` inside the app, unless packaging renamed it. The suite prints the browser version first, so a run in Anvers is distinguishable from a run in Playwright's own Chromium. With `ANVERS_CHROMIUM` set, a missing Playwright fails the run instead of skipping it.
 
-Established, here: 26 unit tests and 19 browser tests pass in Playwright's Chromium 141 on Linux (the previews skipped), in two runs: one in Playwright's headless shell, apart from the theme test, which always uses the full browser; and one entirely in the full browser. Each of twenty deliberate faults in the component makes them fail. Not established: macOS, Futura (absent on Linux, so the previews show a fallback face), and Chromium 158.
+Established, here: 27 unit tests and 19 browser tests pass in Playwright's Chromium 141 on Linux (the previews skipped), in two runs: one in Playwright's headless shell, apart from the theme test, which always uses the full browser; and one entirely in the full browser. Each of twenty deliberate faults in the component makes them fail. Not established: macOS, Futura (absent on Linux, so the previews show a fallback face), and Chromium 158.
 
 ## Outside this component
 
@@ -37,37 +37,45 @@ Inferred, unverified, offered as a lead only. In Chromium the Home button and th
 
 ## Withdrawn: the wider mark palette and grammar 4
 
-On 18 October this section announced a wider palette for the mark and a grammar 4. Both are withdrawn. Reported by Codex on the pull request, 19 October: Nadar rejected the monochrome-blue edition, wants the Bauhaus colours while browsing, and Codex restored the original homepage and installed a matching theme, version 0.5.2. Codex's instruction to Claude was to keep the original homepage layout and the full Bauhaus palette, and to align the browsing themes with red, yellow, blue, paper and ink. Reported by Nadar to Claude: follow Codex.
+On 18 October this section announced a wider palette for the mark and a grammar 4. Both are withdrawn. Reported by Codex on the pull request, 19 October: Nadar rejected the monochrome-blue edition, wants the Bauhaus colours while browsing, and Codex restored the original homepage and installed a matching theme with Anvers 0.5.2. Codex's instruction to Claude was to keep the original homepage layout and the full Bauhaus palette, and to align the browsing themes with red, yellow, blue, paper and ink. Reported by Nadar to Claude: follow Codex.
 
 Established, by the diff since commit `39f7589`: the mark, its palette, its grounds and grammar 3 are unchanged, so every seed draws as before. The mark's fill is already solid: neither the script nor the stylesheet uses opacity, a gradient or a blend.
 
 ## Browser themes (19 October 2026)
 
-Four standalone folders under `themes/`, each holding one `manifest.json` and nothing else: colours only, with no images, tints, code, `ntp_*` key or incognito key. `anvers-themes.js` holds the values; `node bin/anvers-themes.js` rewrites the folders and refuses if a contrast check fails. The README's section "Browser themes" gives the table, the states checked and every figure.
+Four standalone folders under `themes/`, each holding one `manifest.json` and nothing else: colours only, with no images, tints, code, `ntp_*` key or incognito key. `anvers-themes.js` holds the values. `node bin/anvers-themes.js` prints every state with its contrast and rewrites the folders, and it refuses if a check fails. The README's section "Browser themes" grades each point below, with its means and the figures that matter; the generator prints every figure.
 
-- **Default, `anvers-bauhaus`.** Blue frame, ink when the window is unfocused, yellow toolbar and active tab, ink toolbar text, dark-red icons, white address field, white text on the frame. It follows the composition Codex reported for 0.5.2. Its values are the identity's own: 0.5.2's `theme.colors` were asked for on the pull request and have not been posted. Inferred, not checked: the default approximates 0.5.2 rather than matching it. If Codex posts the values, they replace these, subject to the same checks.
-- **Alternatives.** `anvers-bauhaus-red` has a red frame with a blue toolbar; `anvers-bauhaus-ink` has an ink frame with a red toolbar. Both have white text, paper icons and an ink unfocused frame.
-- **Reference.** `anvers-reference-0.5.0` is the 0.5.0 theme as Codex reported it, without its `ntp_*` keys.
+- **Default, `anvers-bauhaus`.** Codex's installed theme 0.5.3, less its four `ntp_*` keys. It has a yellow frame, background tabs and toolbar, dark-red icons, and an ink unfocused frame. Its values are 0.5.2's exact ones, as Codex reported them on 19 October 2026, with 0.5.3's reported changes. Inferred, please confirm: the unfocused background-tab text stays `#f4f1ea`. The unit tests pin it key for key.
+- **Alternatives.** `anvers-bauhaus-ink` has an ink frame, a paper toolbar and red icons. `anvers-bauhaus-yellow` has an ink frame, a yellow toolbar and blue icons. Both use white text on the frame, ink text on the toolbar, and a white address field.
+- **Reference.** `anvers-reference-0.5.0` is the 0.5.0 theme as reported, without its `ntp_*` keys.
 
-**Changed since commit `63ab393`, after an adversarial review.** That commit's themes and documents were wrong in four ways:
+**Changed since commit `3b36004`, after Codex's review and a second review round.**
 
-- they said the New Tab page stays unchanged;
-- they said private windows take ink;
-- they checked contrast only on plain fills, so a hovered background tab fell below 4.5:1 (2.52:1 in the old red theme);
-- the browser test loaded the folders without exercising `--load-extension`.
+- **The browser theme test is split, as Codex asked.**
+  - Before any theme, it records the page a new tab opens.
+  - If that is Chromium's own New Tab page, the page must take each theme's toolbar colour, as before.
+  - If it has been replaced, as in Anvers, the homepage must keep exactly the colours it has with no theme.
+  - Either way, the page must show no console or page error, and the installation and restart checks are unchanged.
 
-The two alternatives are redesigned. The default keeps its composition, with white instead of paper text on the frame. Read this commit, not `63ab393`.
+  Established here: on Playwright's Chromium 141 the test takes the first path. With the New Tab page replaced by a stand-in extension serving a paper page, it takes the second and passes. A stand-in page that throws fails it.
+- **The default is Codex's installed theme**, instead of an approximation in the identity's colours: 0.5.2's exact values, then 0.5.3's yellow frame.
+- **Two more states are computed**, from Chromium 141's source and from pixels measured during review: the address bar's security chip, drawn in the address text colour on the toolbar, and Chromium's fixed grey globe.
+- **The alternatives are redesigned.** In the version at `3b36004`, their dark toolbars put the chip and the globe below 3:1 (measured, 1.11 to 3.33:1).
+- **Limitations are now computed, not listed.**
+  - A theme may name a failing state as a limitation only where no colour, for that text or icon, could hold it together with the same element's plain states, the theme's other colours staying as they are.
+  - The generator and the unit tests each search for such a colour, independently.
+  - They refuse a limitation that holds, or that a colour could hold.
+- **The model is qualified.** It is Chromium 141's, and not checked against Chromium 158.
 
-**What Chromium does with these themes.** Established in Chromium 141 on Linux unless marked.
+**What bears on integration.**
 
-- **The New Tab page.** Chromium paints its own New Tab page in the toolbar colour when a theme sets no `ntp_background`: yellow under the default. The browser test asserts this for every theme. Whether Anvers's homepage on the native New Tab routes takes that colour depends on its own stylesheet; as Codex said it would, Codex should check both routes before replacing the installed theme. Holding the stock colour would need `ntp_background`, which these themes leave to Codex.
-- **Private windows.** Chromium does not theme them.
-- **Contrast in each state Chromium draws.** Every text and icon was computed against what it sits on in fourteen states, including the fills Chromium mixes for hovered and selected tabs, and the dimmed new-tab button of an unfocused window. The alternatives pass all fourteen. The default has three exceptions, which its composition imposes whatever the exact values (a dark frame, a light toolbar, dark icons):
-  - the text of a hovered selected tab: 2.63:1, or 2.83:1 unfocused;
-  - the new-tab button in an unfocused window: 1.21:1.
+- **The homepage.** Reported by Codex: under the default of `3b36004`, Anvers's homepage kept its paper ground in Chromium 158. With the corrected test, a run of `ANVERS_CHROMIUM=<Anvers executable> node --test test/browser.test.mjs` should take the replaced-homepage path. It should then pass if the homepage keeps its colours under all four themes. Inferred, not checked: the default sets no `ntp_background`, so if any part of the homepage takes Chromium's New Tab colour, it would turn yellow. The test would then fail, and say so.
+- **Limitations of the default.** Under 0.5.3, every state of a focused window passes. Two limitations remain, both in an unfocused window, where the ink frame sits under the yellow toolbar:
+  - a hovered selected tab, 2.00:1;
+  - the new-tab button, 1.39:1.
 
-  Inferred: Codex's installed 0.5.2 has the same three, by the same composition.
-- **Loading and persistence.** Each folder, copied to a temporary directory, is installed through `--load-extension` alone. Chromium paints it, and a restart of the same profile without the switch keeps it. A theme Chromium refuses fails the test.
-- **Identifiers and the compiled pack.** The manifests carry no `key`, so Chromium derives a theme's identifier from its folder's path. A copy at a new content-hashed path is installed as a new theme, and the old entry stays in the profile. A stable runtime path, or a `key` added in packaging, avoids this; the choice is Codex's. Chromium also writes `Cached Theme.pak` into the folder it loads. Loading a copy keeps the bundled folder, and its hash, unchanged; the runtime copy itself gains the pack.
+  Under 0.5.2's blue frame there were five. As Codex said, these are limitations to keep in view, not defects the theme can fix.
+- **Private windows.** Chromium does not theme them. Established in 141 by its source and by measurement; inferred for 158.
+- **Identifiers and the compiled pack.** The manifests carry no `key`, so the theme's identifier follows its folder's path. A content-hashed copy at a new path installs as a new theme and leaves the old entry in the profile; this was established in 141 by a relaunch experiment during review. A stable runtime path, or a `key` added in packaging, avoids it. Chromium writes `Cached Theme.pak` into the folder it loads; this is established by the browser test.
 
-Not established: how the window itself looks in each state (the browser tests read pages, not the window), macOS, and Chromium 158. These are Codex's to verify in installed Anvers, as Codex required. Nothing here is installed, and I changed nothing on the Mac.
+Not established: macOS, and anything in Chromium 158 beyond what Codex reported. Nothing here is installed, and I changed nothing on the Mac.
