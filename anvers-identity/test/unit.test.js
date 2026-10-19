@@ -477,8 +477,9 @@ const CHROMIUM_COLOR_KEYS = new Set([
 // Chromium mixes (a hovered background tab 40% toolbar over the tab fill, a
 // selected tab 75%, a hovered selected tab 85%). The new-tab button of an
 // unfocused window is the icon colour at 0x6E/255 over the unfocused tab fill.
-// The address bar's security chip is the address text on the toolbar colour;
-// '#5f6368' is Chromium's fixed grey globe for a page without an icon.
+// The address bar's security chip reuses the address text colour on the
+// toolbar colour; '#5f6368' is Chromium's fixed grey globe for a page without
+// an icon.
 const TAB_FILL = ['background_tab', 'frame'], TAB_FILL_UNFOCUSED = ['background_tab_inactive', 'frame_inactive'];
 const THEME_STATES = [
   ['toolbar text', 'toolbar_text', 'toolbar', 4.5],
@@ -486,7 +487,7 @@ const THEME_STATES = [
   ['bookmark text', 'bookmark_text', 'toolbar', 4.5],
   ['toolbar icons', 'toolbar_button_icon', 'toolbar', 3],
   ['address text', 'omnibox_text', 'omnibox_background', 4.5],
-  ['address bar chip text', 'omnibox_text', 'toolbar', 4.5],
+  ['address bar chip text', 'omnibox_text', 'toolbar', 4.5, 'reused'],
   ['globe on the active tab', '#5f6368', 'toolbar', 3],
   ['background tab text', 'tab_background_text', TAB_FILL, 4.5],
   ['globe on a background tab', '#5f6368', TAB_FILL, 3],
@@ -526,18 +527,21 @@ function statesOf(colors) {
     .filter(([, fg, bg]) => fg && bg).map(([state, fg, bg, min]) => [state, contrast(fg, bg), min]);
 }
 const shippedStates = folder => statesOf(shipped(folder));
-// Whether no colour for a mixed state's foreground key, searched over 16
-// levels per channel, holds that state and the key's plain states together,
-// the other colours staying as they are: then the composition, not the
-// theme's choice of that colour, decides the state. A fixed foreground,
-// which no key sets, is always the composition's.
+// Whether no colour for a derived state's foreground key (one Chromium mixes,
+// or reuses on another fill), searched over 16 levels per channel, holds that
+// state and the key's primary states together, the other colours staying as
+// they are: then the composition, not the theme's choice of that colour,
+// decides the state. A primary state never qualifies; a fixed foreground,
+// which no key sets, always does.
 const unmixed = spec => typeof spec === 'string' || Array.isArray(spec);
+const primary = ([, fg, bg, , use]) => unmixed(fg) && unmixed(bg) && use !== 'reused';
 function noColourHolds(colors, state) {
-  const [, fg, bg] = THEME_STATES.find(s => s[0] === state);
+  const row = THEME_STATES.find(s => s[0] === state);
+  const fg = row[1];
   if (typeof fg === 'string' && fg.startsWith('#')) return true;
-  if (unmixed(fg) && unmixed(bg)) return false;
+  if (primary(row)) return false;
   const key = unmixed(fg) ? fg : fg.over;
-  const relevant = THEME_STATES.filter(s => s[0] === state || (s[1] === key && unmixed(s[2])));
+  const relevant = THEME_STATES.filter(s => s[0] === state || (s[1] === key && primary(s)));
   const levels = Array.from({length: 16}, (_, i) => i * 17);
   for (const r of levels) for (const g of levels) for (const b of levels) {
     const trial = {...colors, [key]: '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')};
@@ -671,25 +675,32 @@ test('themes: every text holds 4.5:1 and every icon 3:1 in each modelled state, 
   // The search tells a limitation from a choice: under 0.5.2's blue frame and
   // yellow toolbar no text colour holds a hovered background tab, while under
   // the identity's own blue and yellow white text does.
-  const blue052 = {...shipped('anvers-bauhaus'), frame: '#1d4f9e', background_tab: '#1d4f9e', tab_background_text: '#f4f1ea'};
+  const blue052 = {...shipped('anvers-bauhaus'), frame: '#1d4f9e', background_tab: '#1d4f9e', tab_background_text: '#f4f1ea',
+    toolbar: '#f2c319', toolbar_text: '#111111', tab_text: '#111111', bookmark_text: '#111111', toolbar_button_icon: '#b32218'};
   assert.equal(noColourHolds(blue052, 'hovered background tab text'), true);
   const ownColours = {...blue052, frame: '#1f4e99', background_tab: '#1f4e99', toolbar: '#e0a817'};
   assert.equal(noColourHolds(ownColours, 'hovered background tab text'), false);
-  assert.equal(noColourHolds(shipped('anvers-bauhaus'), 'toolbar icons'), false, 'a plain state is never a limitation');
+  assert.equal(noColourHolds(shipped('anvers-bauhaus'), 'toolbar icons'), false, 'a primary state is never a limitation');
+  assert.equal(noColourHolds(shipped('anvers-bauhaus'), 'address text'), false, 'a primary state is never a limitation');
+  // The chip: dark text on the white field cannot also read on a dark
+  // toolbar, but on a light one it can.
+  assert.equal(noColourHolds(shipped('anvers-bauhaus'), 'address bar chip text'), true);
+  assert.equal(noColourHolds(shipped('anvers-bauhaus-ink'), 'address bar chip text'), false);
 });
 
-test('themes: the default is Codex\'s theme 0.5.3, without ntp_* keys; the reference is 0.5.0', () => {
+test('themes: the default is Codex\'s theme 0.5.4, without ntp_* keys; the reference is 0.5.0', () => {
   const defaults = T.THEMES.filter(t => t.role === 'default');
   assert.equal(defaults.length, 1);
   // Codex's report of the installed theme.colors of 0.5.2, on the pull
   // request (19 October 2026), less ntp_background, ntp_text, ntp_link and
-  // ntp_header, with 0.5.3's reported change: the frame and background tabs
-  // yellow [242,195,25], their text [17,17,17].
+  // ntp_header, with the reported changes of 0.5.3 and 0.5.4: frame and
+  // background tabs yellow [242,195,25] with ink text [17,17,17]; toolbar and
+  // active tab blue [29,79,158] with paper text and icons [244,241,234].
   assert.deepEqual(shipped(defaults[0].folder), {
     frame: '#f2c319', frame_inactive: '#111111', background_tab: '#f2c319', background_tab_inactive: '#111111',
-    toolbar: '#f2c319', toolbar_text: '#111111', toolbar_button_icon: '#b32218', button_background: '#f2c319',
-    tab_text: '#111111', tab_background_text: '#111111', tab_background_text_inactive: '#f4f1ea',
-    bookmark_text: '#111111', omnibox_background: '#ffffff', omnibox_text: '#111111',
+    toolbar: '#1d4f9e', toolbar_text: '#f4f1ea', toolbar_button_icon: '#f4f1ea', button_background: '#f2c319',
+    tab_text: '#f4f1ea', tab_background_text: '#111111', tab_background_text_inactive: '#f4f1ea',
+    bookmark_text: '#f4f1ea', omnibox_background: '#ffffff', omnibox_text: '#111111',
   });
   // The alternatives recombine the identity's colours, and white: an ink
   // frame under a paper toolbar with red icons, and under a yellow toolbar

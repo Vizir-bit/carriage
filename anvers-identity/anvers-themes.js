@@ -2,7 +2,7 @@
  * Anvers browser themes: colour-only Chromium themes for the frame, tabs,
  * toolbar, address bar and bookmark text, built from the identity's own
  * palette (red, yellow, blue, paper, ink) and white; the default takes the
- * colours of the theme Codex installed, version 0.5.3.
+ * colours of the theme Codex installed, version 0.5.4.
  *
  * Each theme is a standalone folder holding one manifest.json and nothing
  * else: no code, no images and no ntp_* key. Chromium still paints its own
@@ -50,11 +50,12 @@ const KEYS = Object.freeze([
 // In an unfocused window it draws the new-tab button with the toolbar icon
 // colour at 0x6E/255 opacity (chrome_color_mixer.cc), so that foreground is
 // itself a mix. The active tab takes the toolbar colour. Under a theme,
-// Chromium also draws the address bar's security chip ('Not secure', 'File')
-// in the address text colour on the toolbar colour (location_bar_view.cc,
-// omnibox_color_mixer.cc), and a page without an icon gets a fixed grey globe,
-// #5f6368, which no key changes; a foreground given as a colour is such a
-// fixed one. Not checked against Chromium 158.
+// Chromium also reuses the address text colour for the address bar's
+// security chip ('Not secure', 'File'), drawn on the toolbar colour
+// (location_bar_view.cc, omnibox_color_mixer.cc); such a row is marked
+// 'reused'. A page without an icon gets a fixed grey globe, #5f6368, which no
+// key changes; a foreground given as a colour is such a fixed one. Not
+// checked against Chromium 158.
 const HOVER = 0.4, SELECTED = 0.75, SELECTED_HOVER = 0.85, DIMMED = 0x6E / 255;
 const TAB = 'background_tab|frame', TAB_UNFOCUSED = 'background_tab_inactive|frame_inactive';
 const GLOBE = '#5f6368';
@@ -64,7 +65,7 @@ const STATES = Object.freeze([
   ['bookmark text', 'bookmark_text', 'toolbar', 4.5],
   ['toolbar icons', 'toolbar_button_icon', 'toolbar', 3],
   ['address text', 'omnibox_text', 'omnibox_background', 4.5],
-  ['address bar chip text', 'omnibox_text', 'toolbar', 4.5],
+  ['address bar chip text', 'omnibox_text', 'toolbar', 4.5, 'reused'],
   ['globe on the active tab', GLOBE, 'toolbar', 3],
   ['background tab text', 'tab_background_text', TAB, 4.5],
   ['globe on a background tab', GLOBE, TAB, 3],
@@ -97,40 +98,44 @@ function bauhaus({frame, inactive, toolbar, text, icons}) {
   };
 }
 
-// The states a dark unfocused frame under a light toolbar, with dark icons,
-// cannot pass with any colour; check() verifies each claim.
+// States some compositions cannot pass with any colour; check() verifies
+// each claim.
 const LIGHT_ON_LIGHT = 'Chromium keeps the light text and close button of background tabs on a fill that is 85% the light toolbar colour';
+const DARK_ON_DARK = 'Chromium keeps the dark text and close button of background tabs on a fill that is 85% the dark toolbar colour';
 const DIMMED_ICON = 'Chromium draws the button in the dark icon colour at 43% opacity over the dark unfocused frame';
 const FIXED_GLOBE = "Chromium's grey globe is fixed; on this fill no key can change it";
+const CHIP = 'the address text must be dark on the white field, and Chromium reuses it for the chip on the dark toolbar';
 
 const THEMES = Object.freeze([
   {
     folder: 'anvers-bauhaus',
     name: 'Anvers Bauhaus',
     role: 'default',
-    description: 'Yellow frame, tabs and toolbar, dark-red icons, white address field, dark text; ink when unfocused.',
-    // Codex's installed theme, version 0.5.3, without its ntp_* keys: 0.5.2
-    // as Codex reported it on the pull request, with the frame, the
-    // background tabs and their text changed as Codex reported for 0.5.3.
+    description: 'Yellow frame and background tabs with ink text; blue toolbar and active tab with paper text and icons; white address field.',
+    // Codex's installed theme, version 0.5.4, without its ntp_* keys: 0.5.2
+    // as Codex reported it on the pull request, with the changes Codex
+    // reported for 0.5.3 and 0.5.4 (the two colours of 0.5.2 reversed). Keys
+    // Codex did not report as changed keep their 0.5.2 values.
     colors: {
       frame: '#f2c319',
       frame_inactive: '#111111',
       background_tab: '#f2c319',
       background_tab_inactive: '#111111',
-      toolbar: '#f2c319',
-      toolbar_text: '#111111',
-      toolbar_button_icon: '#b32218',
+      toolbar: '#1d4f9e',
+      toolbar_text: '#f4f1ea',
+      toolbar_button_icon: '#f4f1ea',
       button_background: '#f2c319',
-      tab_text: '#111111',
+      tab_text: '#f4f1ea',
       tab_background_text: '#111111',
       tab_background_text_inactive: '#f4f1ea',
-      bookmark_text: '#111111',
+      bookmark_text: '#f4f1ea',
       omnibox_background: '#ffffff',
       omnibox_text: '#111111',
     },
     limitations: {
-      'hovered selected tab text, unfocused window': LIGHT_ON_LIGHT,
-      'new-tab button, unfocused window': DIMMED_ICON,
+      'address bar chip text': CHIP,
+      'globe on the active tab': FIXED_GLOBE,
+      'hovered selected tab text': DARK_ON_DARK,
     },
   },
   {
@@ -218,20 +223,24 @@ function resolve(colors, spec) {
 // The key whose colour a state's foreground is drawn in.
 const keyOf = spec => (typeof spec === 'string' ? spec : spec[0]);
 
-// Whether no colour at all for a state's foreground key could hold the state
-// together with that key's plain states (those on an unmixed fill), the
-// theme's other colours staying as they are. Only such a state is the
-// composition's limitation rather than the theme's choice; a fixed
-// foreground, which no key sets, always is. Searched over 18 levels per
-// channel.
+// A state is derived when Chromium mixes its colours or reuses a key's
+// colour on another fill; the others are a key's primary states.
+const derived = row => typeof row[1] !== 'string' || typeof row[2] !== 'string' || row[4] === 'reused';
+
+// Whether no colour at all for a derived state's foreground key could hold
+// the state together with that key's primary states, the theme's other
+// colours staying as they are. Only such a state is the composition's
+// limitation rather than the theme's choice; a primary state never is, and
+// a fixed foreground, which no key sets, always is. Searched over 18 levels
+// per channel.
 const LEVELS = Array.from({length: 18}, (_, i) => Math.min(255, i * 15));
 function imposed(theme, state) {
   const row = STATES.find(s => s[0] === state);
   if (!row) return false;
   const key = keyOf(row[1]);
   if (key.startsWith('#')) return true;
-  if (typeof row[1] === 'string' && typeof row[2] === 'string') return false;
-  const plain = STATES.filter(s => s[1] === key && typeof s[2] === 'string');
+  if (!derived(row)) return false;
+  const plain = STATES.filter(s => s[1] === key && !derived(s));
   for (const r of LEVELS) for (const g of LEVELS) for (const b of LEVELS) {
     const colors = {...theme.colors, [key]: hex([r, g, b])};
     if ([row, ...plain].every(([, fg, bg, min]) => contrast(resolve(colors, fg), resolve(colors, bg)) >= min)) return false;

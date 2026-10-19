@@ -2,21 +2,21 @@
   "manifest_version": 3,
   "name": "Anvers Bauhaus",
   "version": "1.0.0",
-  "description": "Yellow frame, tabs and toolbar, dark-red icons, white address field, dark text; ink when unfocused.",
+  "description": "Yellow frame and background tabs with ink text; blue toolbar and active tab with paper text and icons; white address field.",
   "theme": {
     "colors": {
       "frame": [242, 195, 25],
       "frame_inactive": [17, 17, 17],
       "background_tab": [242, 195, 25],
       "background_tab_inactive": [17, 17, 17],
-      "toolbar": [242, 195, 25],
-      "toolbar_text": [17, 17, 17],
-      "toolbar_button_icon": [179, 34, 24],
+      "toolbar": [29, 79, 158],
+      "toolbar_text": [244, 241, 234],
+      "toolbar_button_icon": [244, 241, 234],
       "button_background": [242, 195, 25],
-      "tab_text": [17, 17, 17],
+      "tab_text": [244, 241, 234],
       "tab_background_text": [17, 17, 17],
       "tab_background_text_inactive": [244, 241, 234],
-      "bookmark_text": [17, 17, 17],
+      "bookmark_text": [244, 241, 234],
       "omnibox_background": [255, 255, 255],
       "omnibox_text": [17, 17, 17]
     }
