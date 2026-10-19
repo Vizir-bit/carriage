@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Writes every Anvers browser theme as a standalone folder holding one
 // manifest.json, under themes/ (or the directory given), and prints each
-// theme's contrast in every state Chromium draws. Stops without writing if
+// theme's contrast in each state the module models. Stops without writing if
 // any text or icon falls below its contrast, unless the theme names that
 // state as a limitation and no colour could hold it.
 //
